@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nilkamal 3D Configurator — Demo Prototype</title>
+<link rel="stylesheet" href="./css/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon-wrap">
+      <svg class="brand-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8,58 L8,22 Q8,6 24,6 L36,6 Q52,6 52,22 L52,58 Z" fill="#2E9BDB"/>
+        <path d="M30,44 C25,35 25,20 30,10 C35,20 35,35 30,44 Z" fill="#ffffff"/>
+        <path d="M30,44 C18,39 11,27 11,18 C23,20 30,31 30,44 Z" fill="#ffffff"/>
+        <path d="M30,44 C42,39 49,27 49,18 C37,20 30,31 30,44 Z" fill="#ffffff"/>
+        <ellipse cx="30" cy="45.5" rx="11" ry="2.6" fill="#ffffff"/>
+      </svg>
+      <span class="brand-reg">R</span>
+    </div>
+    <div class="brand-text">
+      <span class="brand-word">Nilkamal</span>
+      <span class="brand-tag">India's Favourite Furniture</span>
+    </div>
+  </div>
+  <nav class="navtabs" id="navtabs"></nav>
+  <div class="topbar-right">
+    <span class="demo-pill">Prototype Demo</span>
+  </div>
+</header>
+
+<div class="app">
+  <div class="viewer-col">
+    <canvas id="viewer-canvas"></canvas>
+    <svg id="dimOverlay" class="dim-overlay"></svg>
+
+    <div class="viewer-topleft" id="viewer-dims">152 × 86 × 84 cm</div>
+
+    <div class="viewer-loading" id="viewer-loading">
+      <div class="spinner"></div>
+      <span>Loading model…</span>
+    </div>
+
+    <div class="toast" id="toast"><span class="dot"></span><span id="toast-text">Added to cart</span></div>
+
+    <div class="viewer-hint">↻ Drag to rotate · Scroll to zoom</div>
+
+    <div class="viewer-nav">
+      <button class="viewer-arrow" id="prevConfig">‹</button>
+      <div class="viewer-dots" id="viewerDots"></div>
+      <button class="viewer-arrow" id="nextConfig">›</button>
+    </div>
+  </div>
+
+  <aside class="panel-col">
+    <div class="panel-scroll" id="panel-scroll">
+      <div class="p-title" id="p-title">—</div>
+      <div class="p-sku" id="p-sku">—</div>
+      <div class="p-rating">
+        <span class="stars" id="p-stars">★★★★★</span>
+        <span id="p-reviews">0 reviews</span>
+      </div>
+
+      <div id="steps"></div>
+    </div>
+
+    <div class="pricebar">
+      <div class="price-row">
+        <div>
+          <span class="price-main" id="price-main">₹0</span>
+          <span class="price-strike" id="price-strike"></span>
+        </div>
+        <div class="price-emi" id="price-emi">or ₹0/mo with EMI*</div>
+      </div>
+      <div class="price-save" id="price-save"></div>
+      <button class="cta" id="addToCart">🛒 Add to Cart</button>
+      <div class="cta-note">Demo UI only — Shopify checkout wired in production build</div>
+    </div>
+  </aside>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
