@@ -87,12 +87,150 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas);
 resize();
+
+// ============================================================================
+// Live width/height dimension callouts, drawn as an SVG overlay on top of the
+// canvas. Lines are anchored to the current model's bounding box and are
+// re-projected to screen space every frame, so they track the camera as the
+// user orbits.
+// ============================================================================
+const SVGNS = 'http://www.w3.org/2000/svg';
+const dimSvg = document.getElementById('dimOverlay');
+
+function makeDimGroup(axis) {
+  const g = document.createElementNS(SVGNS, 'g');
+  g.setAttribute('class', `dim-group dim-${axis}`);
+  const tick1 = document.createElementNS(SVGNS, 'line');
+  const tick2 = document.createElementNS(SVGNS, 'line');
+  const main = document.createElementNS(SVGNS, 'line');
+  [tick1, tick2, main].forEach((l) => l.setAttribute('class', 'dim-line'));
+  const bg = document.createElementNS(SVGNS, 'rect');
+  bg.setAttribute('class', 'dim-label-bg');
+  const label = document.createElementNS(SVGNS, 'text');
+  label.setAttribute('class', 'dim-label');
+  g.appendChild(tick1); g.appendChild(tick2); g.appendChild(main);
+  g.appendChild(bg); g.appendChild(label);
+  dimSvg.appendChild(g);
+  return { g, tick1, tick2, main, bg, label };
+}
+const dimWidth = makeDimGroup('width');
+const dimHeight = makeDimGroup('height');
+
+const _projV = new THREE.Vector3();
+function worldToScreen(x, y, z) {
+  _projV.set(x, y, z).project(camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  return { x: (_projV.x * 0.5 + 0.5) * w, y: (-_projV.y * 0.5 + 0.5) * h };
+}
+
+function setLine(el, a, b) {
+  el.setAttribute('x1', a.x); el.setAttribute('y1', a.y);
+  el.setAttribute('x2', b.x); el.setAttribute('y2', b.y);
+}
+
+// Offsets a label perpendicular to the on-screen direction of line a→b, so it
+// stays correctly aligned with the dimension line at any camera angle instead
+// of using a fixed pixel offset that only looks right from one viewpoint.
+function perpLabelPos(a, b, dist, awayFrom) {
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  let dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  let px = -dy, py = dx;
+  if (awayFrom) {
+    const tx = mx - awayFrom.x, ty = my - awayFrom.y;
+    if (px * tx + py * ty < 0) { px = -px; py = -py; }
+  }
+  return { x: mx + px * dist, y: my + py * dist };
+}
+
+function setLabel(group, midpoint, text) {
+  group.label.textContent = text;
+  group.label.setAttribute('x', midpoint.x);
+  group.label.setAttribute('y', midpoint.y);
+  const w = Math.max(30, text.length * 6.6 + 12);
+  group.bg.setAttribute('x', midpoint.x - w / 2);
+  group.bg.setAttribute('y', midpoint.y - 10);
+  group.bg.setAttribute('width', w);
+  group.bg.setAttribute('height', 18);
+}
+
+function getCurrentCmDims() {
+  const cat = state.category;
+  const s = state.perCategory[cat];
+  const cfg = CATALOG[cat];
+  if (cat === 'sofa') {
+    const l = cfg.layouts.find((x) => x.id === s.layout);
+    return { width: l.widthCm, height: l.heightCm };
+  }
+  if (cat === 'bed') {
+    const sz = cfg.sizes.find((x) => x.id === s.size);
+    const v = cfg.variants.find((x) => x.id === s.variant);
+    return { width: sz.widthCm, height: v.heightCm };
+  }
+  if (cat === 'wardrobe') {
+    const w = cfg.widths.find((x) => x.id === s.width);
+    const v = cfg.variants.find((x) => x.id === s.variant);
+    return { width: w.widthCm, height: v.heightCm };
+  }
+  if (cat === 'dining') {
+    const v = cfg.variants.find((x) => x.id === s.variant);
+    return { width: v.widthCm, height: v.heightCm };
+  }
+  if (cat === 'accent') {
+    const sz = cfg.sizes.find((x) => x.id === s.size);
+    return { width: sz.widthCm, height: sz.heightCm };
+  }
+  return { width: null, height: null };
+}
+
+const _dimBox = new THREE.Box3();
+function updateDimensionOverlay() {
+  _dimBox.setFromObject(productRoot);
+  if (_dimBox.isEmpty()) { dimSvg.style.opacity = 0; return; }
+  dimSvg.style.opacity = 1;
+  camera.updateMatrixWorld(true);
+
+  const { min, max } = _dimBox;
+  const { width, height } = getCurrentCmDims();
+  const gap = 0.16;
+  const center = _dimBox.getCenter(new THREE.Vector3());
+  const screenCenter = worldToScreen(center.x, center.y, center.z);
+
+  // width callout: horizontal line offset in front of the model, floor level
+  const wz = max.z + gap;
+  const wA = worldToScreen(min.x, min.y, wz);
+  const wB = worldToScreen(max.x, min.y, wz);
+  const wTickA1 = worldToScreen(min.x, min.y, max.z);
+  const wTickA2 = worldToScreen(min.x, min.y, wz);
+  const wTickB1 = worldToScreen(max.x, min.y, max.z);
+  const wTickB2 = worldToScreen(max.x, min.y, wz);
+  setLine(dimWidth.tick1, wTickA1, wTickA2);
+  setLine(dimWidth.tick2, wTickB1, wTickB2);
+  setLine(dimWidth.main, wA, wB);
+  setLabel(dimWidth, perpLabelPos(wA, wB, 16, screenCenter), width ? `${width} cm` : '');
+
+  // height callout: vertical line offset to the left side of the model
+  const hx = min.x - gap;
+  const hA = worldToScreen(hx, min.y, max.z);
+  const hB = worldToScreen(hx, max.y, max.z);
+  const hTickA1 = worldToScreen(min.x, min.y, max.z);
+  const hTickA2 = worldToScreen(hx, min.y, max.z);
+  const hTickB1 = worldToScreen(min.x, max.y, max.z);
+  const hTickB2 = worldToScreen(hx, max.y, max.z);
+  setLine(dimHeight.tick1, hTickA1, hTickA2);
+  setLine(dimHeight.tick2, hTickB1, hTickB2);
+  setLine(dimHeight.main, hA, hB);
+  setLabel(dimHeight, perpLabelPos(hA, hB, 22, screenCenter), height ? `${height} cm` : '');
+}
+
 // No automatic/forced rotation — the model only turns when the user drags.
 // OrbitControls (below) handles all rotation/zoom input directly.
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
+  updateDimensionOverlay();
 }
 animate();
 // ============================================================================
