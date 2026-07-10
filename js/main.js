@@ -453,3 +453,281 @@ function updateDims() {
   else if (cat === 'accent') dims = cfg.sizes.find((z) => z.id === s.size)?.dims || '';
   document.getElementById('viewer-dims').textContent = dims;
 }
+// ============================================================================
+// UI builders
+// ============================================================================
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+function stepBlock(num, label) {
+  const step = el('div', 'step');
+  const lab = el('div', 'step-label');
+  lab.innerHTML = `<span class="step-num">${num}</span>${label}`;
+  step.appendChild(lab);
+  return step;
+}
+
+function buildSwatchRow(container, group, activeId, onPick) {
+  const row = el('div', 'swatch-row');
+  SWATCHES[group].forEach((sw) => {
+    const wrap = el('div', 'swatch-wrap');
+    const btn = el('div', 'swatch' + (sw.id === activeId ? ' active' : ''));
+    btn.style.background = sw.hex;
+    btn.title = sw.name;
+    if (sw.premium) {
+      const dot = el('div', 'premium-dot', '+');
+      btn.appendChild(dot);
+    }
+    btn.addEventListener('click', () => onPick(sw.id));
+    const label = el('div', 'swatch-label', sw.name);
+    wrap.appendChild(btn);
+    wrap.appendChild(label);
+    row.appendChild(wrap);
+  });
+  container.appendChild(row);
+}
+
+function buildChipRow(container, options, activeId, onPick, priceFormatter) {
+  const row = el('div', 'chip-row');
+  options.forEach((opt) => {
+    const chip = el('div', 'chip' + (opt.id === activeId ? ' active' : ''));
+    const sub = priceFormatter ? priceFormatter(opt) : (opt.dims || opt.desc || '');
+    chip.innerHTML = `<span>${opt.name}</span><span class="chip-sub">${sub}</span>`;
+    chip.addEventListener('click', () => onPick(opt.id));
+    row.appendChild(chip);
+  });
+  container.appendChild(row);
+}
+
+function buildThumbRow(container, options, activeId, thumbKeyFn, onPick) {
+  const row = el('div', 'thumb-row');
+  options.forEach((opt) => {
+    const wrap = el('div', 'thumb-wrap');
+    const key = thumbKeyFn(opt);
+    const btn = el('div', 'thumb-btn' + (opt.id === activeId ? ' active' : ''));
+    btn.setAttribute('data-thumb-key', key);
+    if (thumbCache.has(key)) btn.style.backgroundImage = `url(${thumbCache.get(key)})`;
+    const fb = el('div', 'thumb-fallback', '🛋️');
+    if (thumbCache.has(key)) fb.style.display = 'none';
+    btn.appendChild(fb);
+    btn.addEventListener('click', () => onPick(opt.id));
+    wrap.appendChild(btn);
+    wrap.appendChild(el('div', 'thumb-label', opt.name));
+    row.appendChild(wrap);
+  });
+  container.appendChild(row);
+}
+
+function buildModuleRow(container, modules, activeMap, onToggle) {
+  const row = el('div', 'module-row');
+  modules.forEach((m) => {
+    const item = el('div', 'module-item' + (activeMap[m.id] ? ' active' : ''));
+    const left = el('div', 'module-left');
+    left.innerHTML = `<span class="module-checkbox">${activeMap[m.id] ? '✓' : ''}</span><span>${m.name}</span>`;
+    const price = el('div', 'module-price', '+' + formatINR(m.price));
+    item.appendChild(left);
+    item.appendChild(price);
+    item.addEventListener('click', () => onToggle(m.id));
+    row.appendChild(item);
+  });
+  container.appendChild(row);
+}
+
+function buildStepperRow(container, value, min, max, onChange, labelFn) {
+  const row = el('div', 'stepper-row');
+  const minus = el('button', 'stepper-btn', '−');
+  const val = el('div', 'stepper-val', labelFn(value));
+  const plus = el('button', 'stepper-btn', '+');
+  minus.disabled = value <= min;
+  plus.disabled = value >= max;
+  minus.addEventListener('click', () => onChange(Math.max(min, value - 1)));
+  plus.addEventListener('click', () => onChange(Math.min(max, value + 1)));
+  row.appendChild(minus); row.appendChild(val); row.appendChild(plus);
+  container.appendChild(row);
+}
+// ---------------------------------------------------------------------------
+function renderPanel() {
+  const cat = state.category;
+  const cfg = CATALOG[cat];
+  const s = state.perCategory[cat];
+
+  document.getElementById('p-title').textContent = cfg.heroName;
+  document.getElementById('p-sku').textContent = `SKU ${cfg.sku} · Studio Render`;
+  document.getElementById('p-stars').textContent = '★★★★★'.slice(0, Math.round(cfg.rating)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(cfg.rating));
+  document.getElementById('p-reviews').textContent = `${cfg.rating.toFixed(1)} (${cfg.reviews} reviews)`;
+
+  const steps = document.getElementById('steps');
+  steps.classList.add('fading');
+  steps.innerHTML = '';
+
+  if (cat === 'sofa') {
+    const s1 = stepBlock(1, 'Select Variation');
+    buildThumbRow(s1, cfg.variants, s.variant,
+      (v) => assetUrl(cfg.assetDir, cfg.layouts.find(l => l.id === s.layout).files[v.id]),
+      (id) => { s.variant = id; refreshAll(); });
+    steps.appendChild(s1);
+
+    const s2 = stepBlock(2, 'Select Layout');
+    buildChipRow(s2, cfg.layouts, s.layout, (id) => { s.layout = id; refreshAll(); },
+      (opt) => opt.dims);
+    steps.appendChild(s2);
+
+    const s3 = stepBlock(3, 'Fabric & Color');
+    buildSwatchRow(s3, cfg.swatchGroup, s.color, (id) => { s.color = id; refreshAll(); });
+    steps.appendChild(s3);
+
+    const s4 = stepBlock(4, 'Add Modules');
+    buildModuleRow(s4, cfg.modules, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });
+    steps.appendChild(s4);
+
+  } else if (cat === 'bed') {
+    const s1 = stepBlock(1, 'Select Variation');
+    buildThumbRow(s1, cfg.variants, s.variant, (v) => assetUrl(cfg.assetDir, cfg.files[v.id]),
+      (id) => { s.variant = id; refreshAll(); });
+    steps.appendChild(s1);
+
+    const s2 = stepBlock(2, 'Select Size');
+    buildChipRow(s2, cfg.sizes, s.size, (id) => { s.size = id; refreshAll(); }, (opt) => opt.dims);
+    steps.appendChild(s2);
+
+    const s3 = stepBlock(3, 'Fabric & Color');
+    buildSwatchRow(s3, cfg.swatchGroup, s.color, (id) => { s.color = id; refreshAll(); });
+    steps.appendChild(s3);
+
+  } else if (cat === 'wardrobe') {
+    const s1 = stepBlock(1, 'Select Variation');
+    buildThumbRow(s1, cfg.variants, s.variant, (v) => assetUrl(cfg.assetDir, v.file),
+      (id) => { s.variant = id; refreshAll(); });
+    steps.appendChild(s1);
+
+    const s2 = stepBlock(2, 'Select Width');
+    buildChipRow(s2, cfg.widths, s.width, (id) => { s.width = id; refreshAll(); }, (opt) => opt.dims);
+    steps.appendChild(s2);
+
+    const s3 = stepBlock(3, 'Finish & Color');
+    buildSwatchRow(s3, cfg.swatchGroup, s.finish, (id) => { s.finish = id; refreshAll(); });
+    steps.appendChild(s3);
+
+  } else if (cat === 'dining') {
+    const variant = cfg.variants.find(v => v.id === s.variant);
+    if (!variant.seatOptions.includes(s.seats)) s.seats = variant.seatOptions[variant.seatOptions.length - 1];
+
+    const s1 = stepBlock(1, 'Select Variation');
+    buildThumbRow(s1, cfg.variants, s.variant, (v) => assetUrl(cfg.assetDir, v.file),
+      (id) => { s.variant = id; const nv = cfg.variants.find(x=>x.id===id); s.seats = Math.max(...nv.seatOptions); refreshAll(); });
+    steps.appendChild(s1);
+
+    const s2 = stepBlock(2, 'Seating Count');
+    const chipOpts = variant.seatOptions.map((n) => ({ id: n, name: `${n}-Seater` }));
+    buildChipRow(s2, chipOpts, s.seats, (id) => { s.seats = id; refreshAll(); }, () => 'Add / remove chairs');
+    steps.appendChild(s2);
+
+    const s3 = stepBlock(3, 'Table Finish');
+    buildSwatchRow(s3, 'wood', s.woodColor, (id) => { s.woodColor = id; refreshAll(); });
+    steps.appendChild(s3);
+
+    const s4 = stepBlock(4, 'Chair Upholstery');
+    buildSwatchRow(s4, 'fabric', s.fabricColor, (id) => { s.fabricColor = id; refreshAll(); });
+    steps.appendChild(s4);
+
+  } else if (cat === 'accent') {
+    const s1 = stepBlock(1, 'Select Style');
+    buildChipRow(s1, cfg.variants, s.variant, (id) => { s.variant = id; refreshAll(); }, (opt) => opt.desc);
+    steps.appendChild(s1);
+
+    const s2 = stepBlock(2, 'Select Size');
+    buildChipRow(s2, cfg.sizes, s.size, (id) => { s.size = id; refreshAll(); }, (opt) => opt.dims);
+    steps.appendChild(s2);
+
+    const s3 = stepBlock(3, 'Top Finish');
+    buildSwatchRow(s3, 'wood', s.woodColor, (id) => { s.woodColor = id; refreshAll(); });
+    steps.appendChild(s3);
+
+    const s4 = stepBlock(4, 'Leg Finish');
+    buildSwatchRow(s4, 'metal', s.metalColor, (id) => { s.metalColor = id; refreshAll(); });
+    steps.appendChild(s4);
+  }
+
+  updatePriceUI();
+  refreshThumbButtons();
+  requestAnimationFrame(() => steps.classList.remove('fading'));
+}
+
+function refreshAll() {
+  renderPanel();
+  refreshScene();
+  buildConfigDots();
+}
+// ============================================================================
+// Nav tabs
+// ============================================================================
+function buildNavTabs() {
+  const nav = document.getElementById('navtabs');
+  nav.innerHTML = '';
+  CATEGORY_ORDER.forEach((key) => {
+    const btn = el('button', 'navtab' + (key === state.category ? ' active' : ''), CATALOG[key].navLabel);
+    btn.addEventListener('click', () => {
+      state.category = key;
+      document.querySelectorAll('.navtab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      refreshAll();
+    });
+    nav.appendChild(btn);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Prev / next arrows cycle through the primary config axis for the category
+// ---------------------------------------------------------------------------
+function primaryAxisOptions() {
+  const cat = state.category;
+  const cfg = CATALOG[cat];
+  if (cat === 'sofa') return { key: 'layout', options: cfg.layouts.map(l => l.id) };
+  if (cat === 'bed') return { key: 'size', options: cfg.sizes.map(z => z.id) };
+  if (cat === 'wardrobe') return { key: 'width', options: cfg.widths.map(w => w.id) };
+  if (cat === 'dining') return { key: 'variant', options: cfg.variants.map(v => v.id) };
+  if (cat === 'accent') return { key: 'size', options: cfg.sizes.map(z => z.id) };
+}
+
+function buildConfigDots() {
+  const { options } = primaryAxisOptions();
+  const s = state.perCategory[state.category];
+  const { key } = primaryAxisOptions();
+  const dotsWrap = document.getElementById('viewerDots');
+  dotsWrap.innerHTML = '';
+  options.forEach((id) => {
+    const dot = el('div', 'viewer-dot' + (s[key] === id ? ' active' : ''));
+    dotsWrap.appendChild(dot);
+  });
+}
+
+function stepAxis(dir) {
+  const { key, options } = primaryAxisOptions();
+  const s = state.perCategory[state.category];
+  let idx = options.indexOf(s[key]);
+  idx = (idx + dir + options.length) % options.length;
+  s[key] = options[idx];
+  refreshAll();
+}
+
+document.getElementById('prevConfig').addEventListener('click', () => stepAxis(-1));
+document.getElementById('nextConfig').addEventListener('click', () => stepAxis(1));
+// ============================================================================
+// Add to cart (dummy)
+// ============================================================================
+document.getElementById('addToCart').addEventListener('click', () => {
+  const toast = document.getElementById('toast');
+  const cfg = CATALOG[state.category];
+  document.getElementById('toast-text').textContent = `Added "${cfg.heroName}" to cart (demo)`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+});
+// ============================================================================
+// Boot
+// ============================================================================
+buildNavTabs();
+refreshAll();
