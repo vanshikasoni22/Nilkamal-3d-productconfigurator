@@ -129,3 +129,75 @@ function loadGLB(url) {
 function assetUrl(dir, file) {
   return `./assets/${dir}/${file}`;
 }
+// normalize scale+position so every product frames consistently regardless of source scale
+function normalize(object, targetSize = 2.05) {
+  const box = new THREE.Box3().setFromObject(object);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const scale = targetSize / maxDim;
+  object.scale.setScalar(scale);
+
+  // recompute box after scaling to reposition on floor, centered at origin
+  const box2 = new THREE.Box3().setFromObject(object);
+  const size2 = new THREE.Vector3();
+  box2.getSize(size2);
+  const center2 = new THREE.Vector3();
+  box2.getCenter(center2);
+  object.position.x -= center2.x;
+  object.position.z -= center2.z;
+  object.position.y -= box2.min.y;
+  return { footprint: size2 };
+}
+// ============================================================================
+// Procedural accent side table (used standalone + as sofa module)
+// ============================================================================
+function buildAccentTable({ shape = 'round', woodHex = '#b98a53', metalHex = '#2b2b2b', scale = 1 } = {}) {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: woodHex, roughness: 0.42, metalness: 0.02 });
+  const metalMat = new THREE.MeshStandardMaterial({ color: metalHex, roughness: 0.32, metalness: 0.85 });
+
+  const topH = 0.035;
+  let top;
+  if (shape === 'round') {
+    top = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, topH, 48), woodMat);
+  } else {
+    top = new THREE.Mesh(new THREE.BoxGeometry(0.5, topH, 0.5), woodMat);
+  }
+  top.position.y = 0.44;
+  g.add(top);
+
+  const legRadius = 0.012;
+  const legPositions = [
+    [0.19, 0.19], [-0.19, 0.19], [0.19, -0.19], [-0.19, -0.19],
+  ];
+  legPositions.forEach(([x, z]) => {
+    const legGeo = new THREE.CylinderGeometry(legRadius, legRadius * 1.4, 0.42, 12);
+    const leg = new THREE.Mesh(legGeo, metalMat);
+    leg.position.set(x, 0.21, z);
+    leg.rotation.z = (x > 0 ? -1 : 1) * 0.09;
+    leg.rotation.x = (z > 0 ? 1 : -1) * 0.09;
+    g.add(leg);
+  });
+
+  g.scale.setScalar(scale);
+  return g;
+}
+
+function buildOttoman({ hex = '#575c62', scale = 1 } = {}) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0.0 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.32, 32), mat);
+  body.position.y = 0.16;
+  g.add(body);
+  const legMat = new THREE.MeshStandardMaterial({ color: '#2b2b2b', roughness: 0.35, metalness: 0.7 });
+  [[0.18,0.18],[-0.18,0.18],[0.18,-0.18],[-0.18,-0.18]].forEach(([x,z])=>{
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.014,0.08,10), legMat);
+    leg.position.set(x, 0.02, z);
+    g.add(leg);
+  });
+  g.scale.setScalar(scale);
+  return g;
+}
