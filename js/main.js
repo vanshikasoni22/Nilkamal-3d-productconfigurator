@@ -95,3 +95,37 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// ============================================================================
+// Loaders + cache
+// ============================================================================
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('./vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
+
+const modelCache = new Map(); // url -> THREE.Group (raw, unnormalized clone source)
+
+function loadGLB(url) {
+  if (modelCache.has(url)) return Promise.resolve(modelCache.get(url).clone(true));
+  return new Promise((resolve, reject) => {
+    gltfLoader.load(
+      url,
+      (gltf) => {
+        const obj = gltf.scene;
+        obj.traverse((n) => {
+          if (n.isMesh) {
+            if (n.material) n.material = n.material.clone();
+          }
+        });
+        modelCache.set(url, obj);
+        resolve(obj.clone(true));
+      },
+      undefined,
+      reject
+    );
+  });
+}
+
+function assetUrl(dir, file) {
+  return `./assets/${dir}/${file}`;
+}
