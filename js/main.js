@@ -389,3 +389,67 @@ function refreshThumbButtons() {
     }
   });
 }
+// ============================================================================
+// Pricing
+// ============================================================================
+function computePrice() {
+  const cat = state.category;
+  const s = state.perCategory[cat];
+  const cfg = CATALOG[cat];
+  let total = 0;
+  let strike = 0;
+
+  if (cat === 'sofa') {
+    const layout = cfg.layouts.find((l) => l.id === s.layout);
+    total += layout.price[s.variant];
+    const colorSw = SWATCHES.fabric.find(sw => sw.id === s.color);
+    if (colorSw?.premium) total += 3500;
+    cfg.modules.forEach((m) => { if (s.modules[m.id]) total += m.price; });
+  } else if (cat === 'bed') {
+    total += cfg.basePrice[s.variant];
+    total += cfg.sizes.find((z) => z.id === s.size).priceAdd;
+    const colorSw = SWATCHES.fabric.find(sw => sw.id === s.color);
+    if (colorSw?.premium) total += 2000;
+  } else if (cat === 'wardrobe') {
+    const variant = cfg.variants.find((v) => v.id === s.variant);
+    total += variant.basePrice;
+    total += cfg.widths.find((w) => w.id === s.width).priceAdd;
+    const finishSw = SWATCHES.wood.find(sw => sw.id === s.finish);
+    if (finishSw?.premium) total += 2500;
+  } else if (cat === 'dining') {
+    const variant = cfg.variants.find((v) => v.id === s.variant);
+    total += variant.basePrice;
+    const includedChairs = Math.max(...variant.seatOptions);
+    total += (s.seats - includedChairs) * variant.chairPrice;
+  } else if (cat === 'accent') {
+    total += cfg.basePrice;
+    total += cfg.sizes.find((z) => z.id === s.size).priceAdd;
+    const variant = cfg.variants.find((v) => v.id === s.variant);
+    total += variant.priceAdd;
+  }
+
+  strike = Math.round(total * 1.18);
+  return { total, strike };
+}
+
+function updatePriceUI() {
+  const { total, strike } = computePrice();
+  document.getElementById('price-main').textContent = formatINR(total);
+  document.getElementById('price-strike').textContent = formatINR(strike);
+  document.getElementById('price-emi').textContent = `or ${formatINR(emiEstimate(total))}/mo with EMI*`;
+  const pct = Math.round(((strike - total) / strike) * 100);
+  document.getElementById('price-save').textContent = `You Save ${formatINR(strike - total)} (${pct}% Off)`;
+}
+
+function updateDims() {
+  const cat = state.category;
+  const s = state.perCategory[cat];
+  const cfg = CATALOG[cat];
+  let dims = '';
+  if (cat === 'sofa') dims = cfg.layouts.find((l) => l.id === s.layout)?.dims || '';
+  else if (cat === 'bed') dims = cfg.sizes.find((z) => z.id === s.size)?.dims || '';
+  else if (cat === 'wardrobe') dims = cfg.widths.find((w) => w.id === s.width)?.dims || '';
+  else if (cat === 'dining') dims = `${s.seats}-seat configuration`;
+  else if (cat === 'accent') dims = cfg.sizes.find((z) => z.id === s.size)?.dims || '';
+  document.getElementById('viewer-dims').textContent = dims;
+}
