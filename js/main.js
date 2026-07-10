@@ -201,3 +201,191 @@ function buildOttoman({ hex = '#575c62', scale = 1 } = {}) {
   g.scale.setScalar(scale);
   return g;
 }
+// ============================================================================
+// App state
+// ============================================================================
+const state = {
+  category: 'sofa',
+  perCategory: {
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {} },
+    bed: { variant: 'dream', size: 'queen', color: 'charcoal' },
+    wardrobe: { variant: 'classic', finish: 'walnut', width: 'standard' },
+    dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal' },
+    accent: { variant: 'round', size: 'small', woodColor: 'oak', metalColor: 'black' },
+  },
+};
+
+const thumbCache = new Map(); // key: url -> dataURL
+
+let sceneToken = 0; // guards against race conditions when rapidly switching
+// ============================================================================
+// Material tinting helper
+// ============================================================================
+function tintObject(object, materialNames, hex) {
+  if (!hex) return;
+  const color = new THREE.Color(hex);
+  object.traverse((n) => {
+    if (n.isMesh && n.material && materialNames.includes(n.material.name)) {
+      n.material.color.copy(color);
+    }
+  });
+}
+
+function setChairVisibility(object, chairNodes, visibleCount) {
+  chairNodes.forEach((name, i) => {
+    const node = object.getObjectByName(name);
+    if (node) node.visible = i < visibleCount;
+  });
+}
+// ============================================================================
+// Scene builders per category
+// ============================================================================
+async function renderSofaScene(token) {
+  const cfg = CATALOG.sofa;
+  const s = state.perCategory.sofa;
+  const layout = cfg.layouts.find((l) => l.id === s.layout);
+  const file = layout.files[s.variant];
+  const url = assetUrl(cfg.assetDir, file);
+  const obj = await loadGLB(url);
+  if (token !== sceneToken) return;
+
+  normalize(obj);
+  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex);
+  productRoot.clear();
+  productRoot.add(obj);
+
+  moduleRoot.clear();
+  const box = new THREE.Box3().setFromObject(obj);
+  if (s.modules.sidetable) {
+    const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1 });
+    t.position.set(box.max.x + 0.34, 0, 0);
+    moduleRoot.add(t);
+  }
+  if (s.modules.ottoman) {
+    const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex });
+    o.position.set(box.min.x - 0.32, 0, 0.15);
+    moduleRoot.add(o);
+  }
+  captureThumbnailFor(url, obj);
+}
+
+async function renderBedScene(token) {
+  const cfg = CATALOG.bed;
+  const s = state.perCategory.bed;
+  const file = cfg.files[s.variant];
+  const url = assetUrl(cfg.assetDir, file);
+  const obj = await loadGLB(url);
+  if (token !== sceneToken) return;
+
+  normalize(obj);
+  const sizeCfg = cfg.sizes.find((z) => z.id === s.size);
+  obj.scale.x *= sizeCfg.scale;
+  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex);
+  productRoot.clear();
+  productRoot.add(obj);
+  moduleRoot.clear();
+  captureThumbnailFor(url, obj);
+}
+
+async function renderWardrobeScene(token) {
+  const cfg = CATALOG.wardrobe;
+  const s = state.perCategory.wardrobe;
+  const variant = cfg.variants.find((v) => v.id === s.variant);
+  const url = assetUrl(cfg.assetDir, variant.file);
+  const obj = await loadGLB(url);
+  if (token !== sceneToken) return;
+
+  normalize(obj);
+  const widthCfg = cfg.widths.find((w) => w.id === s.width);
+  obj.scale.x *= widthCfg.scaleX;
+  const finishHex = SWATCHES.wood.find(sw => sw.id === s.finish)?.hex;
+  tintObject(obj, cfg.materialTargets.wood, finishHex);
+  productRoot.clear();
+  productRoot.add(obj);
+  moduleRoot.clear();
+  captureThumbnailFor(url, obj);
+}
+
+async function renderDiningScene(token) {
+  const cfg = CATALOG.dining;
+  const s = state.perCategory.dining;
+  const variant = cfg.variants.find((v) => v.id === s.variant);
+  const url = assetUrl(cfg.assetDir, variant.file);
+  const obj = await loadGLB(url);
+  if (token !== sceneToken) return;
+
+  normalize(obj);
+  setChairVisibility(obj, variant.chairNodes, s.seats);
+  tintObject(obj, cfg.materialTargets.wood, SWATCHES.wood.find(sw => sw.id === s.woodColor)?.hex);
+  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.fabricColor)?.hex);
+  productRoot.clear();
+  productRoot.add(obj);
+  moduleRoot.clear();
+  captureThumbnailFor(url, obj);
+}
+
+async function renderAccentScene(token) {
+  const cfg = CATALOG.accent;
+  const s = state.perCategory.accent;
+  const sizeCfg = cfg.sizes.find((z) => z.id === s.size);
+  const woodHex = SWATCHES.wood.find(sw => sw.id === s.woodColor)?.hex;
+  const metalHex = SWATCHES.metal.find(sw => sw.id === s.metalColor)?.hex;
+  const obj = buildAccentTable({ shape: s.variant === 'square' ? 'square' : 'round', woodHex, metalHex, scale: 1 });
+  normalize(obj, 1.5 * sizeCfg.scale);
+  productRoot.clear();
+  productRoot.add(obj);
+  moduleRoot.clear();
+  hideLoading();
+}
+
+const SCENE_RENDERERS = {
+  sofa: renderSofaScene,
+  bed: renderBedScene,
+  wardrobe: renderWardrobeScene,
+  dining: renderDiningScene,
+  accent: renderAccentScene,
+};
+
+function showLoading() { document.getElementById('viewer-loading').classList.remove('hidden'); }
+function hideLoading() { document.getElementById('viewer-loading').classList.add('hidden'); }
+
+async function refreshScene() {
+  const token = ++sceneToken;
+  showLoading();
+  try {
+    await SCENE_RENDERERS[state.category](token);
+  } catch (e) {
+    console.error('Scene load failed', e);
+  }
+  if (token === sceneToken) hideLoading();
+  updateDims();
+}
+// ============================================================================
+// Thumbnails — captured from the live renderer once a model has been framed
+// ============================================================================
+function captureThumbnailFor(key, obj) {
+  if (thumbCache.has(key)) { refreshThumbButtons(); return; }
+  // wait a couple of frames so camera/controls settle and shadows render
+  let frames = 0;
+  function tick() {
+    frames++;
+    if (frames < 3) { requestAnimationFrame(tick); return; }
+    try {
+      const dataUrl = renderer.domElement.toDataURL('image/png');
+      thumbCache.set(key, dataUrl);
+      refreshThumbButtons();
+    } catch (e) { /* canvas tainted or not ready — ignore */ }
+  }
+  requestAnimationFrame(tick);
+}
+
+function refreshThumbButtons() {
+  document.querySelectorAll('[data-thumb-key]').forEach((el) => {
+    const key = el.getAttribute('data-thumb-key');
+    if (thumbCache.has(key)) {
+      el.style.backgroundImage = `url(${thumbCache.get(key)})`;
+      const fb = el.querySelector('.thumb-fallback');
+      if (fb) fb.style.display = 'none';
+    }
+  });
+}
