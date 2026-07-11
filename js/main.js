@@ -469,11 +469,11 @@ async function renderSofaScene(token) {
   if (token !== sceneToken) return;
 
   normalize(obj);
-  // NOTE: sofa1-var1.glb and sofa1-var2.glb (same for sofa2) share the exact
-  // same geometry/bounding box — they're color/texture bakes of one fixed
-  // sofa, not distinct 2-seat/3-seat models. Stretching one non-uniformly to
-  // fake a size difference warped the mesh badly, so that's been removed.
-  // "Select Layout" currently swaps texture only; see chat for next steps.
+  // Scale relative to the 2-seater baseline so a 3-seater actually reads as
+  // bigger on screen, instead of every layout being re-fit to the same size.
+  const baseLayout = cfg.layouts[0];
+  obj.scale.x *= layout.widthCm / baseLayout.widthCm;
+  obj.scale.z *= layout.depthCm / baseLayout.depthCm;
   applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
