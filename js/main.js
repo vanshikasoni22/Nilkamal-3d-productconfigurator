@@ -860,14 +860,24 @@ function renderPanel() {
   steps.innerHTML = '';
 
   if (cat === 'sofa') {
+    const layoutsForVariant = (variantId) => cfg.layouts.filter((l) => !(l.excludeVariants || []).includes(variantId));
+
     const s1 = stepBlock(1, 'Select Variation');
     buildThumbRow(s1, cfg.variants, s.variant,
       (v) => assetUrl(cfg.assetDir, cfg.layouts.find(l => l.id === s.layout).files[v.id]),
-      (id) => { s.variant = id; refreshAll(); });
+      (id) => {
+        s.variant = id;
+        // some layouts aren't offered for every variant (e.g. Boston only
+        // ships as a 2-seater) — fall back to the first valid layout instead
+        // of leaving the state pointed at a hidden option.
+        const available = layoutsForVariant(id);
+        if (!available.some((l) => l.id === s.layout)) s.layout = available[0].id;
+        refreshAll();
+      });
     steps.appendChild(s1);
 
     const s2 = stepBlock(2, 'Select Layout');
-    buildChipRow(s2, cfg.layouts, s.layout, (id) => { s.layout = id; refreshAll(); },
+    buildChipRow(s2, layoutsForVariant(s.variant), s.layout, (id) => { s.layout = id; refreshAll(); },
       (opt) => opt.dims);
     steps.appendChild(s2);
 
@@ -1000,7 +1010,11 @@ function buildNavTabs() {
 function primaryAxisOptions() {
   const cat = state.category;
   const cfg = CATALOG[cat];
-  if (cat === 'sofa') return { key: 'layout', options: cfg.layouts.map(l => l.id) };
+  if (cat === 'sofa') {
+    const s = state.perCategory.sofa;
+    const available = cfg.layouts.filter((l) => !(l.excludeVariants || []).includes(s.variant));
+    return { key: 'layout', options: available.map(l => l.id) };
+  }
   if (cat === 'bed') return { key: 'size', options: cfg.sizes.map(z => z.id) };
   if (cat === 'wardrobe') return { key: 'width', options: cfg.widths.map(w => w.id) };
   if (cat === 'dining') return { key: 'variant', options: cfg.variants.map(v => v.id) };

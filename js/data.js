@@ -61,6 +61,7 @@ export const CATALOG = {
         widthCm: 198, depthCm: 90, heightCm: 84,
         files: { boston: 'sofa1-var2.glb', cosmo: 'sofa2-var2.glb' },
         price: { boston: 44999, cosmo: 52999 },
+        excludeVariants: ['boston'],
       },
     ],
     swatchGroup: 'fabric',
