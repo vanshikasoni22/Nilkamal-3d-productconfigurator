@@ -32,6 +32,19 @@ export const SWATCHES = {
     { id: 'brass', name: 'Brushed Brass', hex: '#a9812f' },
     { id: 'chrome', name: 'Chrome Silver', hex: '#c9cdd1' },
   ],
+  // Door-accent finishes for the Modular Sliding wardrobe: the existing wood
+  // tones (so a natural all-wood look is still available) plus painted
+  // two-tone colors matching the client's reference renders.
+  doorAccent: [
+    { id: 'walnut', name: 'Walnut Brown', hex: '#5a3d2b', premium: false },
+    { id: 'oak', name: 'Natural Oak', hex: '#b98a53', premium: false },
+    { id: 'wenge', name: 'Wenge Dark', hex: '#332420', premium: true },
+    { id: 'white', name: 'Arctic White', hex: '#e9e7e2', premium: false },
+    { id: 'slateBlue', name: 'Slate Blue', hex: '#7c8ba6', premium: true },
+    { id: 'powderBlue', name: 'Powder Blue', hex: '#a7bcdc', premium: true },
+    { id: 'sageMint', name: 'Sage Mint', hex: '#c7dcbd', premium: true },
+    { id: 'dustyRose', name: 'Dusty Rose', hex: '#dac2c6', premium: true },
+  ],
 };
 
 // Every category shares this shape:

@@ -580,7 +580,7 @@ async function renderWardrobeScene(token) {
   obj.scale.x *= widthCfg.scaleX;
   if (variant.twoTone) {
     applyFinish(obj, variant.materialTargets.frame, SWATCHES.wood.find(sw => sw.id === s.frameColor)?.hex, 'wood', s.textured);
-    applyFinish(obj, variant.materialTargets.door, SWATCHES.wood.find(sw => sw.id === s.doorColor)?.hex, 'wood', s.textured);
+    applyFinish(obj, variant.materialTargets.door, SWATCHES.doorAccent.find(sw => sw.id === s.doorColor)?.hex, 'wood', s.textured);
   } else {
     applyFinish(obj, variant.materialTargets.wood, SWATCHES.wood.find(sw => sw.id === s.finish)?.hex, 'wood', s.textured);
   }
@@ -933,7 +933,7 @@ function renderPanel() {
       steps.appendChild(s3);
 
       const s4 = stepBlock(4, 'Door Accent Color');
-      buildSwatchRow(s4, 'wood', s.doorColor, (id) => { s.doorColor = id; refreshAll(); });
+      buildSwatchRow(s4, 'doorAccent', s.doorColor, (id) => { s.doorColor = id; refreshAll(); });
       buildTextureToggle(s4, 'Wood Grain Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
       steps.appendChild(s4);
     } else {
