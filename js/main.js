@@ -351,31 +351,34 @@ function buildOttoman({ hex = '#575c62', scale = 1, textured = true } = {}) {
 // ============================================================================
 function makeFabricCanvasTexture() {
   const c = document.createElement('canvas');
-  c.width = c.height = 128;
+  c.width = c.height = 64;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 128, 128);
-  const weave = 8;
-  for (let y = 0; y < 128; y += weave) {
-    for (let x = 0; x < 128; x += weave) {
-      const alt = ((x / weave) + (y / weave)) % 2 === 0;
-      ctx.fillStyle = alt ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.06)';
-      ctx.fillRect(x, y, weave, weave);
-      ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-      ctx.strokeRect(x + 0.5, y + 0.5, weave - 1, weave - 1);
-    }
-  }
-  const img = ctx.getImageData(0, 0, 128, 128);
+  ctx.fillRect(0, 0, 64, 64);
+  // Fine grain noise instead of a bold checker pattern — this mesh's UVs are
+  // stretched enough that a coarse pattern reads as a giant checkerboard, so
+  // the pattern itself has to be very low-contrast and very high-frequency to
+  // still look like cloth once repeated across the surface.
+  const img = ctx.getImageData(0, 0, 64, 64);
   for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 14;
-    img.data[i] = Math.min(255, Math.max(0, img.data[i] + n));
-    img.data[i + 1] = Math.min(255, Math.max(0, img.data[i + 1] + n));
-    img.data[i + 2] = Math.min(255, Math.max(0, img.data[i + 2] + n));
+    const n = (Math.random() - 0.5) * 8;
+    img.data[i] = 255 + n;
+    img.data[i + 1] = 255 + n;
+    img.data[i + 2] = 255 + n;
   }
   ctx.putImageData(img, 0, 0);
+  // faint diagonal thread hint, barely visible, just enough to read as woven
+  ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+  ctx.lineWidth = 1;
+  for (let i = -64; i < 128; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i + 64, 64);
+    ctx.stroke();
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(6, 6);
+  tex.repeat.set(45, 45);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -415,11 +418,11 @@ const woodTexture = makeWoodCanvasTexture();
 const state = {
   category: 'sofa',
   perCategory: {
-    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: true },
-    bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: true },
-    wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: true },
-    dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: true },
-    accent: { variant: 'round', size: 'small', woodColor: 'oak', metalColor: 'black', textured: true },
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: false },
+    bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: false },
+    wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: false },
+    dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: false },
+    accent: { variant: 'round', size: 'small', woodColor: 'oak', metalColor: 'black', textured: false },
   },
 };
 
