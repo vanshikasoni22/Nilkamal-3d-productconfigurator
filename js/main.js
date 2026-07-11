@@ -483,8 +483,18 @@ function applyFinish(object, materialNames, hex, patternType, textured) {
   const tex = patternType === 'wood' ? woodTexture : patternType === 'fabric' ? fabricTexture : null;
   object.traverse((n) => {
     if (n.isMesh && n.material && materialNames.includes(n.material.name)) {
+      // Remember the model's own baked texture the first time we touch this
+      // material, so turning the procedural texture toggle off restores the
+      // real baked detail instead of falling back to a flat, mapless color.
+      // Any material NOT in materialNames (e.g. a split-off frame/leg region)
+      // is never touched here at all — it keeps its original color and
+      // texture untouched, so a color swatch only recolors the part of the
+      // model that's actually meant to change.
+      if (n.material.userData.__origMap === undefined) {
+        n.material.userData.__origMap = n.material.map || null;
+      }
       n.material.color.copy(color);
-      n.material.map = (textured && tex) ? tex : null;
+      n.material.map = textured ? tex : n.material.userData.__origMap;
       n.material.needsUpdate = true;
     }
   });
