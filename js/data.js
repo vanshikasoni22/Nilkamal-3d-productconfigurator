@@ -117,9 +117,7 @@ export const CATALOG = {
       },
     ],
     widths: [
-      { id: 'compact', name: 'Compact', dims: '120 cm wide', scaleX: 0.86, priceAdd: -3000, widthCm: 120 },
       { id: 'standard', name: 'Standard', dims: '150 cm wide', scaleX: 1.0, priceAdd: 0, widthCm: 150 },
-      { id: 'wide', name: 'Wide', dims: '180 cm wide', scaleX: 1.16, priceAdd: 5500, widthCm: 180 },
     ],
     swatchGroup: 'wood',
     assetDir: 'wardrobe',
