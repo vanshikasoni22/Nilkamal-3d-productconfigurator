@@ -538,18 +538,22 @@ async function renderSofaScene(token) {
   const box = new THREE.Box3().setFromObject(obj);
   // Accent table/ottoman footprints are ~0.27-0.3 units in radius — offset
   // by that radius plus a real visible gap so they sit clearly beside the
-  // sofa's arm instead of clipping into it.
+  // sofa's arm instead of clipping into it. The camera looks at the model
+  // from +Z (see camera.position further up), so "beside the front of the
+  // sofa" means near max.z, not the depth-center (Z=0) — otherwise the
+  // module reads as sitting further back than the front seat cushions.
   const SIDE_TABLE_RADIUS = 0.27;
   const OTTOMAN_RADIUS = 0.30;
   const SIDE_GAP = 0.22;
+  const frontZ = box.min.z + (box.max.z - box.min.z) * 0.72;
   if (s.modules.sidetable) {
     const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
-    t.position.set(box.max.x + SIDE_TABLE_RADIUS + SIDE_GAP, 0, 0);
+    t.position.set(box.max.x + SIDE_TABLE_RADIUS + SIDE_GAP, 0, frontZ);
     moduleRoot.add(t);
   }
   if (s.modules.ottoman) {
     const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, textured: s.textured });
-    o.position.set(box.min.x - OTTOMAN_RADIUS - SIDE_GAP, 0, 0.15);
+    o.position.set(box.min.x - OTTOMAN_RADIUS - SIDE_GAP, 0, frontZ);
     moduleRoot.add(o);
   }
   captureThumbnailFor(url, obj);
