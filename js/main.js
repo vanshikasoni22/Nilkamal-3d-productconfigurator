@@ -553,7 +553,9 @@ async function renderSofaScene(token) {
   // Sit slightly out in front of the sofa's front edge, not flush with it,
   // so it's unambiguously in front rather than tucked beside/behind the arm.
   const frontZ = box.max.z + 0.16;
-  if (s.modules.sidetable) {
+  const sidetableModule = cfg.modules.find((m) => m.id === 'sidetable');
+  const sidetableAllowed = !(sidetableModule?.excludeVariants || []).includes(s.variant);
+  if (s.modules.sidetable && sidetableAllowed) {
     const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
     // Rotate off-axis so all 4 splayed legs read as distinct even from a
     // straight-on front view, instead of the front/back leg pairs lining up
@@ -721,7 +723,10 @@ function computePrice() {
     total += layout.price[s.variant];
     const colorSw = SWATCHES.fabric.find(sw => sw.id === s.color);
     if (colorSw?.premium) total += 3500;
-    cfg.modules.forEach((m) => { if (s.modules[m.id]) total += m.price; });
+    cfg.modules.forEach((m) => {
+      if ((m.excludeVariants || []).includes(s.variant)) return;
+      if (s.modules[m.id]) total += m.price;
+    });
   } else if (cat === 'bed') {
     total += cfg.basePrice[s.variant];
     total += cfg.sizes.find((z) => z.id === s.size).priceAdd;
@@ -903,6 +908,13 @@ function renderPanel() {
         // of leaving the state pointed at a hidden option.
         const available = layoutsForVariant(id);
         if (!available.some((l) => l.id === s.layout)) s.layout = available[0].id;
+        // same for modules that aren't offered on every variant (e.g. the
+        // side table doesn't render properly against Boston's geometry) —
+        // clear it rather than leaving a hidden module still toggled on and
+        // silently added to the price.
+        cfg.modules.forEach((m) => {
+          if ((m.excludeVariants || []).includes(id)) s.modules[m.id] = false;
+        });
         refreshAll();
       });
     steps.appendChild(s1);
@@ -918,7 +930,8 @@ function renderPanel() {
     steps.appendChild(s3);
 
     const s4 = stepBlock(4, 'Add Modules');
-    buildModuleRow(s4, cfg.modules, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });
+    const modulesForVariant = cfg.modules.filter((m) => !(m.excludeVariants || []).includes(s.variant));
+    buildModuleRow(s4, modulesForVariant, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });
     steps.appendChild(s4);
 
   } else if (cat === 'bed') {

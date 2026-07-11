@@ -79,7 +79,7 @@ export const CATALOG = {
     ],
     swatchGroup: 'fabric',
     modules: [
-      { id: 'sidetable', name: 'Add Side Table', price: 4499, kind: 'sidetable' },
+      { id: 'sidetable', name: 'Add Side Table', price: 4499, kind: 'sidetable', excludeVariants: ['boston'] },
       { id: 'ottoman', name: 'Add Ottoman / Extra Seat', price: 7999, kind: 'ottoman' },
     ],
     assetDir: 'sofa',
