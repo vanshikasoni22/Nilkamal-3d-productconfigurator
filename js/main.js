@@ -544,14 +544,21 @@ async function renderSofaScene(token) {
   // module reads as sitting further back than the front seat cushions.
   const SIDE_TABLE_RADIUS = 0.27;
   const OTTOMAN_RADIUS = 0.30;
-  const SIDE_GAP = 0.22;
-  // Sit slightly out in front of the sofa's front edge — flush (max.z - 0.05)
-  // still let the armrest visually occlude/overlap the table from a
-  // front-ish camera angle. Pushing it just past the front plane keeps it
-  // unambiguously in front, not tucked beside/behind the arm.
+  // A near head-on camera angle can still visually collapse a small gap
+  // (the arm's silhouette overlaps the table even though they don't
+  // intersect in 3D) — use a much bigger side gap so the table reads as
+  // clearly separate from the sofa at any reasonable viewing angle, not
+  // just from an already-rotated 3/4 view.
+  const SIDE_GAP = 0.45;
+  // Sit slightly out in front of the sofa's front edge, not flush with it,
+  // so it's unambiguously in front rather than tucked beside/behind the arm.
   const frontZ = box.max.z + 0.16;
   if (s.modules.sidetable) {
     const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
+    // Rotate off-axis so all 4 splayed legs read as distinct even from a
+    // straight-on front view, instead of the front/back leg pairs lining up
+    // and visually merging into a single dark sliver.
+    t.rotation.y = Math.PI / 6;
     t.position.set(box.max.x + SIDE_TABLE_RADIUS + SIDE_GAP, 0, frontZ);
     moduleRoot.add(t);
   }
