@@ -418,7 +418,7 @@ const woodTexture = makeWoodCanvasTexture();
 const state = {
   category: 'sofa',
   perCategory: {
-    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: false },
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', legColor: 'walnut', modules: {}, textured: false },
     bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: false },
     wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: false },
     dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: false },
@@ -449,6 +449,81 @@ function applyFinish(object, materialNames, hex, patternType, textured) {
   });
 }
 
+// ============================================================================
+// Sofa leg/body material split
+// The sofa .glb files are a single fused mesh with one material — there's no
+// separate "legs" part to target by name. What they DO have is a real,
+// verifiable geometric gap: the leg vertices sit in an isolated cluster near
+// the very bottom of the mesh with almost nothing directly above them before
+// the seat/frame structure begins. This splits triangles into two material
+// groups purely by that height cutoff, so the legs can be colored/textured
+// independently of the body — actual geometry-based separation, not a guess
+// painted over the whole mesh.
+// ============================================================================
+function splitLegsFromBody(object, thresholdFraction = 0.1) {
+  object.traverse((node) => {
+    if (!node.isMesh || !node.geometry || !node.geometry.attributes.position) return;
+    const geom = node.geometry;
+    geom.computeBoundingBox();
+    const bbox = geom.boundingBox;
+    const splitY = bbox.min.y + thresholdFraction * (bbox.max.y - bbox.min.y);
+
+    const pos = geom.attributes.position;
+    const index = geom.getIndex();
+    const triCount = index ? index.count / 3 : pos.count / 3;
+    const legTris = [];
+    const bodyTris = [];
+    for (let t = 0; t < triCount; t++) {
+      let i0, i1, i2;
+      if (index) {
+        i0 = index.getX(t * 3); i1 = index.getX(t * 3 + 1); i2 = index.getX(t * 3 + 2);
+      } else {
+        i0 = t * 3; i1 = t * 3 + 1; i2 = t * 3 + 2;
+      }
+      const avgY = (pos.getY(i0) + pos.getY(i1) + pos.getY(i2)) / 3;
+      (avgY < splitY ? legTris : bodyTris).push(i0, i1, i2);
+    }
+    // if the split doesn't cleanly separate into two non-trivial groups,
+    // leave this mesh alone rather than risk a nonsensical result
+    if (legTris.length < 3 || bodyTris.length < 3) return;
+
+    const newGeom = geom.clone();
+    const combined = legTris.concat(bodyTris);
+    newGeom.setIndex(combined);
+    newGeom.clearGroups();
+    newGeom.addGroup(0, legTris.length, 0);
+    newGeom.addGroup(legTris.length, bodyTris.length, 1);
+
+    const baseMat = Array.isArray(node.material) ? node.material[0] : node.material;
+    node.geometry = newGeom;
+    node.material = [baseMat.clone(), baseMat.clone()];
+  });
+}
+
+// Colors the [leg, body] material pair produced by splitLegsFromBody. Falls
+// back to a plain single-color tint if a mesh's split didn't happen.
+function applySofaFinish(object, bodyHex, legHex, bodyTextured, legTextured) {
+  const bodyColor = new THREE.Color(bodyHex);
+  const legColor = new THREE.Color(legHex);
+  object.traverse((n) => {
+    if (!n.isMesh || !n.material) return;
+    if (Array.isArray(n.material) && n.material.length === 2) {
+      const [legMat, bodyMat] = n.material;
+      legMat.color.copy(legColor);
+      legMat.map = legTextured ? woodTexture : null;
+      legMat.roughness = 0.45; legMat.metalness = 0.04;
+      legMat.needsUpdate = true;
+      bodyMat.color.copy(bodyColor);
+      bodyMat.map = bodyTextured ? fabricTexture : null;
+      bodyMat.needsUpdate = true;
+    } else {
+      n.material.color.copy(bodyColor);
+      n.material.map = bodyTextured ? fabricTexture : null;
+      n.material.needsUpdate = true;
+    }
+  });
+}
+
 function setChairVisibility(object, chairNodes, visibleCount) {
   chairNodes.forEach((name, i) => {
     const node = object.getObjectByName(name);
@@ -474,7 +549,14 @@ async function renderSofaScene(token) {
   // sofa, not distinct 2-seat/3-seat models. Stretching one non-uniformly to
   // fake a size difference warped the mesh badly, so that's been removed.
   // "Select Layout" currently swaps texture only; see chat for next steps.
-  applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
+  splitLegsFromBody(obj, 0.1);
+  applySofaFinish(
+    obj,
+    SWATCHES.fabric.find(sw => sw.id === s.color)?.hex,
+    SWATCHES.wood.find(sw => sw.id === s.legColor)?.hex,
+    s.textured,
+    true // legs are wood-finished by default, always textured
+  );
   productRoot.clear();
   productRoot.add(obj);
 
@@ -830,9 +912,15 @@ function renderPanel() {
     buildTextureToggle(s3, 'Woven Fabric Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s3);
 
-    const s4 = stepBlock(4, 'Add Modules');
-    buildModuleRow(s4, cfg.modules, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });
+    const s4 = stepBlock(4, 'Leg & Frame Finish');
+    const legNote = el('div', 'step-note', 'Legs/frame are colored separately from the body fabric — a real geometric split based on the model, not a flat single-color mesh.');
+    s4.appendChild(legNote);
+    buildSwatchRow(s4, 'wood', s.legColor, (id) => { s.legColor = id; refreshAll(); });
     steps.appendChild(s4);
+
+    const s5 = stepBlock(5, 'Add Modules');
+    buildModuleRow(s5, cfg.modules, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });
+    steps.appendChild(s5);
 
   } else if (cat === 'bed') {
     const s1 = stepBlock(1, 'Select Variation');
