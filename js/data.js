@@ -14,18 +14,22 @@ export const BRAND = {
 
 export const SWATCHES = {
   fabric: [
-    { id: 'charcoal', name: 'Charcoal Grey', hex: '#575c62', premium: false },
-    { id: 'teal', name: 'Lagoon Teal', hex: '#3c7d84', premium: false },
-    { id: 'beige', name: 'Sandstone Beige', hex: '#cdb89a', premium: false },
-    { id: 'rust', name: 'Rust Orange', hex: '#b1552f', premium: true },
-    { id: 'navy', name: 'Midnight Navy', hex: '#33405c', premium: true },
-    { id: 'ivory', name: 'Classic Ivory', hex: '#e9e2d3', premium: false },
+    { id: 'charcoal', name: 'Charcoal Grey', hex: '#54585e', premium: false },
+    { id: 'denim', name: 'Denim Blue', hex: '#3e5f82', premium: false },
+    { id: 'emerald', name: 'Emerald Green', hex: '#276b55', premium: true },
+    { id: 'terracotta', name: 'Terracotta', hex: '#c1603f', premium: false },
+    { id: 'mustard', name: 'Mustard Gold', hex: '#cf9c3e', premium: true },
+    { id: 'rose', name: 'Dusty Rose', hex: '#c69893', premium: false },
+    { id: 'navy', name: 'Midnight Navy', hex: '#2e3a56', premium: true },
+    { id: 'ivory', name: 'Classic Ivory', hex: '#ece4d2', premium: false },
   ],
   wood: [
     { id: 'walnut', name: 'Walnut Brown', hex: '#5a3d2b', premium: false },
-    { id: 'oak', name: 'Natural Oak', hex: '#b98a53', premium: false },
-    { id: 'wenge', name: 'Wenge Dark', hex: '#332420', premium: true },
-    { id: 'white', name: 'Arctic White', hex: '#e9e7e2', premium: false },
+    { id: 'oak', name: 'Natural Oak', hex: '#ba8a52', premium: false },
+    { id: 'maple', name: 'Honey Maple', hex: '#d3a35e', premium: false },
+    { id: 'wenge', name: 'Wenge Dark', hex: '#2b1d19', premium: true },
+    { id: 'greige', name: 'Smoked Greige', hex: '#6d675f', premium: true },
+    { id: 'white', name: 'Arctic White', hex: '#eeeae2', premium: false },
   ],
   metal: [
     { id: 'black', name: 'Matte Black', hex: '#2b2b2b' },
@@ -65,6 +69,7 @@ export const CATALOG = {
     ],
     swatchGroup: 'fabric',
     modules: [
+      { id: 'cushions', name: 'Add Contrast Scatter Cushions', price: 1999, kind: 'cushions' },
       { id: 'sidetable', name: 'Add Side Table', price: 4499, kind: 'sidetable' },
       { id: 'ottoman', name: 'Add Ottoman / Extra Seat', price: 7999, kind: 'ottoman' },
     ],

@@ -343,6 +343,26 @@ function buildOttoman({ hex = '#575c62', scale = 1, textured = true } = {}) {
   return g;
 }
 
+// Small scatter cushions in a contrast color, tucked into the front corner of
+// the seat. This is the safe, guaranteed-correct way to get a genuine second
+// color onto the sofa today: the source sofa files ship as a single fused
+// mesh/material (no separate cushion material to target), so these are new
+// geometry added on top rather than a recolor of the baked-in pillows.
+function buildAccentCushions({ hex = '#c1603f', textured = true, scale = 1 } = {}) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.8, metalness: 0.0, map: textured ? fabricTexture : null });
+  const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.32), mat);
+  c1.rotation.set(0.06, 0.35, -0.05);
+  c1.position.set(0, 0.07, 0);
+  g.add(c1);
+  const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.28), mat);
+  c2.rotation.set(-0.04, -0.5, 0.07);
+  c2.position.set(0.16, 0.065, 0.1);
+  g.add(c2);
+  g.scale.setScalar(scale);
+  return g;
+}
+
 // ============================================================================
 // Procedural fabric / wood-grain textures ("Texture" toggle)
 // Neutral grayscale patterns that get multiplied with the swatch color in the
@@ -415,7 +435,7 @@ const woodTexture = makeWoodCanvasTexture();
 const state = {
   category: 'sofa',
   perCategory: {
-    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: true },
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', cushionColor: 'terracotta', modules: {}, textured: true },
     bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: true },
     wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: true },
     dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: true },
@@ -486,6 +506,15 @@ async function renderSofaScene(token) {
     const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, textured: s.textured });
     o.position.set(box.min.x - 0.32, 0, 0.15);
     moduleRoot.add(o);
+  }
+  if (s.modules.cushions) {
+    const seatY = box.min.y + (box.max.y - box.min.y) * 0.36;
+    const cx = (box.min.x + box.max.x) / 2 - 0.15;
+    const cz = box.max.z - (box.max.z - box.min.z) * 0.22;
+    const cushionHex = SWATCHES.fabric.find(sw => sw.id === s.cushionColor)?.hex;
+    const cushions = buildAccentCushions({ hex: cushionHex, textured: s.textured });
+    cushions.position.set(cx, seatY, cz);
+    moduleRoot.add(cushions);
   }
   captureThumbnailFor(url, obj);
 }
@@ -826,6 +855,12 @@ function renderPanel() {
     buildSwatchRow(s3, cfg.swatchGroup, s.color, (id) => { s.color = id; refreshAll(); });
     buildTextureToggle(s3, 'Woven Fabric Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s3);
+
+    const s3b = stepBlock('+', 'Contrast Cushion Color');
+    const note = el('div', 'step-note', 'The source sofa file is a single fused material, so the body can’t be split into multiple colors yet — this adds separate scatter cushions in a contrast color instead. Toggle them on below.');
+    s3b.appendChild(note);
+    buildSwatchRow(s3b, cfg.swatchGroup, s.cushionColor, (id) => { s.cushionColor = id; refreshAll(); });
+    steps.appendChild(s3b);
 
     const s4 = stepBlock(4, 'Add Modules');
     buildModuleRow(s4, cfg.modules, s.modules, (id) => { s.modules[id] = !s.modules[id]; refreshAll(); });

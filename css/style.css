@@ -251,6 +251,16 @@ body {
   gap: 8px;
   margin-bottom: 12px;
 }
+.step-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 12px;
+}
 .step-num {
   width: 18px; height: 18px;
   border-radius: 50%;
