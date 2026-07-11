@@ -545,7 +545,10 @@ async function renderSofaScene(token) {
   const SIDE_TABLE_RADIUS = 0.27;
   const OTTOMAN_RADIUS = 0.30;
   const SIDE_GAP = 0.22;
-  const frontZ = box.min.z + (box.max.z - box.min.z) * 0.72;
+  // Align with the very front edge of the sofa (where the front cushions/arm
+  // face the camera), not just "mostly forward" — a real side table sits
+  // flush with the front of the sofa, reachable from the front seat.
+  const frontZ = box.max.z - 0.05;
   if (s.modules.sidetable) {
     const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
     t.position.set(box.max.x + SIDE_TABLE_RADIUS + SIDE_GAP, 0, frontZ);
