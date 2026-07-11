@@ -69,8 +69,32 @@ const rim = new THREE.DirectionalLight(0xffffff, 0.9);
 rim.position.set(-1.5, 3, -3.5);
 scene.add(rim);
 
-// No floor shadow-catcher and no contact-shadow blob — flat, clean studio
-// product shot with no shadow underneath the model.
+// Soft ground contact shadow — a blurred radial-gradient disc under the
+// model, not a real-time shadow map. Cheap, always-clean, no peter-panning
+// or acne artifacts, and it reads as the soft "product photography" shadow
+// used by references like IKEA's configurator rather than a hard drop shadow.
+function makeContactShadowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(20,20,22,0.42)');
+  g.addColorStop(0.55, 'rgba(20,20,22,0.22)');
+  g.addColorStop(1, 'rgba(20,20,22,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const contactShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ map: makeContactShadowTexture(), transparent: true, depthWrite: false })
+);
+contactShadow.rotation.x = -Math.PI / 2;
+contactShadow.renderOrder = -1;
+contactShadow.visible = false;
+scene.add(contactShadow);
 
 // root that holds the current active product
 const productRoot = new THREE.Group();
@@ -184,10 +208,27 @@ function getCurrentCmDims() {
   return { width: null, height: null };
 }
 
+let showDims = false;
 const _dimBox = new THREE.Box3();
+const _dimSize = new THREE.Vector3();
+const _dimCenter = new THREE.Vector3();
 function updateDimensionOverlay() {
   _dimBox.setFromObject(productRoot);
-  if (_dimBox.isEmpty()) { dimSvg.style.opacity = 0; return; }
+  if (_dimBox.isEmpty()) {
+    dimSvg.style.opacity = 0;
+    contactShadow.visible = false;
+    return;
+  }
+
+  // Contact shadow tracks the model's footprint every frame, independent of
+  // whether the measurement overlay is toggled on.
+  _dimBox.getSize(_dimSize);
+  _dimBox.getCenter(_dimCenter);
+  contactShadow.visible = true;
+  contactShadow.position.set(_dimCenter.x, _dimBox.min.y + 0.002, _dimCenter.z);
+  contactShadow.scale.set(Math.max(_dimSize.x, 0.2) * 1.75, Math.max(_dimSize.z, 0.2) * 1.75, 1);
+
+  if (!showDims) { dimSvg.style.opacity = 0; return; }
   dimSvg.style.opacity = 1;
   camera.updateMatrixWorld(true);
 
@@ -983,6 +1024,14 @@ function stepAxis(dir) {
 
 document.getElementById('prevConfig').addEventListener('click', () => stepAxis(-1));
 document.getElementById('nextConfig').addEventListener('click', () => stepAxis(1));
+
+const toggleDimsBtn = document.getElementById('toggleDims');
+toggleDimsBtn.addEventListener('click', () => {
+  showDims = !showDims;
+  toggleDimsBtn.classList.toggle('active', showDims);
+  toggleDimsBtn.setAttribute('aria-pressed', String(showDims));
+  if (!showDims) dimSvg.style.opacity = 0;
+});
 
 // ============================================================================
 // Add to cart (dummy)
