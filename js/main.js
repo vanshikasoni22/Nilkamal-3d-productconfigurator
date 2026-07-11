@@ -233,6 +233,7 @@ function animate() {
   updateDimensionOverlay();
 }
 animate();
+
 // ============================================================================
 // Loaders + cache
 // ============================================================================
@@ -267,6 +268,7 @@ function loadGLB(url) {
 function assetUrl(dir, file) {
   return `./assets/${dir}/${file}`;
 }
+
 // normalize scale+position so every product frames consistently regardless of source scale
 function normalize(object, targetSize = 2.05) {
   const box = new THREE.Box3().setFromObject(object);
@@ -289,12 +291,13 @@ function normalize(object, targetSize = 2.05) {
   object.position.y -= box2.min.y;
   return { footprint: size2 };
 }
+
 // ============================================================================
 // Procedural accent side table (used standalone + as sofa module)
 // ============================================================================
-function buildAccentTable({ shape = 'round', woodHex = '#b98a53', metalHex = '#2b2b2b', scale = 1 } = {}) {
+function buildAccentTable({ shape = 'round', woodHex = '#b98a53', metalHex = '#2b2b2b', scale = 1, textured = true } = {}) {
   const g = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ color: woodHex, roughness: 0.42, metalness: 0.02 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: woodHex, roughness: 0.42, metalness: 0.02, map: textured ? woodTexture : null });
   const metalMat = new THREE.MeshStandardMaterial({ color: metalHex, roughness: 0.32, metalness: 0.85 });
 
   const topH = 0.035;
@@ -324,9 +327,9 @@ function buildAccentTable({ shape = 'round', woodHex = '#b98a53', metalHex = '#2
   return g;
 }
 
-function buildOttoman({ hex = '#575c62', scale = 1 } = {}) {
+function buildOttoman({ hex = '#575c62', scale = 1, textured = true } = {}) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0.0 });
+  const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0.0, map: textured ? fabricTexture : null });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.32, 32), mat);
   body.position.y = 0.16;
   g.add(body);
@@ -339,32 +342,106 @@ function buildOttoman({ hex = '#575c62', scale = 1 } = {}) {
   g.scale.setScalar(scale);
   return g;
 }
+
+// ============================================================================
+// Procedural fabric / wood-grain textures ("Texture" toggle)
+// Neutral grayscale patterns that get multiplied with the swatch color in the
+// shader, so one texture works underneath every color choice — this is what
+// makes swatches read as real woven cloth / wood grain instead of flat color.
+// ============================================================================
+function makeFabricCanvasTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 128, 128);
+  const weave = 8;
+  for (let y = 0; y < 128; y += weave) {
+    for (let x = 0; x < 128; x += weave) {
+      const alt = ((x / weave) + (y / weave)) % 2 === 0;
+      ctx.fillStyle = alt ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x, y, weave, weave);
+      ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+      ctx.strokeRect(x + 0.5, y + 0.5, weave - 1, weave - 1);
+    }
+  }
+  const img = ctx.getImageData(0, 0, 128, 128);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    img.data[i] = Math.min(255, Math.max(0, img.data[i] + n));
+    img.data[i + 1] = Math.min(255, Math.max(0, img.data[i + 1] + n));
+    img.data[i + 2] = Math.min(255, Math.max(0, img.data[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 6);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWoodCanvasTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y++) {
+    const wobble = Math.sin(y * 0.35) * 0.05 + (Math.random() - 0.5) * 0.09;
+    ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 0.16 + wobble)})`;
+    ctx.fillRect(0, y, 128, 1);
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  for (let i = 0; i < 10; i++) {
+    const y = Math.random() * 128;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= 128; x += 8) ctx.lineTo(x, y + Math.sin(x * 0.1 + i) * 3);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 3);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const fabricTexture = makeFabricCanvasTexture();
+const woodTexture = makeWoodCanvasTexture();
+
 // ============================================================================
 // App state
 // ============================================================================
 const state = {
   category: 'sofa',
   perCategory: {
-    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {} },
-    bed: { variant: 'dream', size: 'queen', color: 'charcoal' },
-    wardrobe: { variant: 'classic', finish: 'walnut', width: 'standard' },
-    dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal' },
-    accent: { variant: 'round', size: 'small', woodColor: 'oak', metalColor: 'black' },
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: true },
+    bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: true },
+    wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: true },
+    dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: true },
+    accent: { variant: 'round', size: 'small', woodColor: 'oak', metalColor: 'black', textured: true },
   },
 };
 
 const thumbCache = new Map(); // key: url -> dataURL
 
 let sceneToken = 0; // guards against race conditions when rapidly switching
+
 // ============================================================================
 // Material tinting helper
 // ============================================================================
-function tintObject(object, materialNames, hex) {
-  if (!hex) return;
+// Tints matched materials by name, and optionally layers on a neutral woven
+// fabric / wood-grain pattern (multiplied with the tint color) so swatches
+// read as real material instead of flat plastic color.
+function applyFinish(object, materialNames, hex, patternType, textured) {
+  if (!hex || !materialNames) return;
   const color = new THREE.Color(hex);
+  const tex = patternType === 'wood' ? woodTexture : patternType === 'fabric' ? fabricTexture : null;
   object.traverse((n) => {
     if (n.isMesh && n.material && materialNames.includes(n.material.name)) {
       n.material.color.copy(color);
+      n.material.map = (textured && tex) ? tex : null;
+      n.material.needsUpdate = true;
     }
   });
 }
@@ -375,6 +452,7 @@ function setChairVisibility(object, chairNodes, visibleCount) {
     if (node) node.visible = i < visibleCount;
   });
 }
+
 // ============================================================================
 // Scene builders per category
 // ============================================================================
@@ -388,19 +466,24 @@ async function renderSofaScene(token) {
   if (token !== sceneToken) return;
 
   normalize(obj);
-  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex);
+  // Scale relative to the 2-seater baseline so a 3-seater actually reads as
+  // bigger on screen, instead of every layout being re-fit to the same size.
+  const baseLayout = cfg.layouts[0];
+  obj.scale.x *= layout.widthCm / baseLayout.widthCm;
+  obj.scale.z *= layout.depthCm / baseLayout.depthCm;
+  applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
 
   moduleRoot.clear();
   const box = new THREE.Box3().setFromObject(obj);
   if (s.modules.sidetable) {
-    const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1 });
+    const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
     t.position.set(box.max.x + 0.34, 0, 0);
     moduleRoot.add(t);
   }
   if (s.modules.ottoman) {
-    const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex });
+    const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, textured: s.textured });
     o.position.set(box.min.x - 0.32, 0, 0.15);
     moduleRoot.add(o);
   }
@@ -418,7 +501,7 @@ async function renderBedScene(token) {
   normalize(obj);
   const sizeCfg = cfg.sizes.find((z) => z.id === s.size);
   obj.scale.x *= sizeCfg.scale;
-  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex);
+  applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
   moduleRoot.clear();
@@ -436,8 +519,22 @@ async function renderWardrobeScene(token) {
   normalize(obj);
   const widthCfg = cfg.widths.find((w) => w.id === s.width);
   obj.scale.x *= widthCfg.scaleX;
-  const finishHex = SWATCHES.wood.find(sw => sw.id === s.finish)?.hex;
-  tintObject(obj, cfg.materialTargets.wood, finishHex);
+  if (variant.twoTone) {
+    applyFinish(obj, variant.materialTargets.frame, SWATCHES.wood.find(sw => sw.id === s.frameColor)?.hex, 'wood', s.textured);
+    applyFinish(obj, variant.materialTargets.door, SWATCHES.wood.find(sw => sw.id === s.doorColor)?.hex, 'wood', s.textured);
+  } else {
+    applyFinish(obj, variant.materialTargets.wood, SWATCHES.wood.find(sw => sw.id === s.finish)?.hex, 'wood', s.textured);
+  }
+  // Satin polish pass — the source materials come in flat/matte, which reads
+  // as "cheap plastic" rather than lacquered furniture. Nudge every material
+  // toward a subtle sheen so it looks more premium under the studio lights.
+  obj.traverse((n) => {
+    if (n.isMesh && n.material) {
+      n.material.roughness = Math.min(n.material.roughness ?? 0.6, 0.4);
+      n.material.metalness = Math.max(n.material.metalness ?? 0, 0.05);
+      n.material.envMapIntensity = 1.15;
+    }
+  });
   productRoot.clear();
   productRoot.add(obj);
   moduleRoot.clear();
@@ -454,8 +551,8 @@ async function renderDiningScene(token) {
 
   normalize(obj);
   setChairVisibility(obj, variant.chairNodes, s.seats);
-  tintObject(obj, cfg.materialTargets.wood, SWATCHES.wood.find(sw => sw.id === s.woodColor)?.hex);
-  tintObject(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.fabricColor)?.hex);
+  applyFinish(obj, cfg.materialTargets.wood, SWATCHES.wood.find(sw => sw.id === s.woodColor)?.hex, 'wood', s.textured);
+  applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.fabricColor)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
   moduleRoot.clear();
@@ -468,7 +565,7 @@ async function renderAccentScene(token) {
   const sizeCfg = cfg.sizes.find((z) => z.id === s.size);
   const woodHex = SWATCHES.wood.find(sw => sw.id === s.woodColor)?.hex;
   const metalHex = SWATCHES.metal.find(sw => sw.id === s.metalColor)?.hex;
-  const obj = buildAccentTable({ shape: s.variant === 'square' ? 'square' : 'round', woodHex, metalHex, scale: 1 });
+  const obj = buildAccentTable({ shape: s.variant === 'square' ? 'square' : 'round', woodHex, metalHex, scale: 1, textured: s.textured });
   normalize(obj, 1.5 * sizeCfg.scale);
   productRoot.clear();
   productRoot.add(obj);
@@ -498,6 +595,7 @@ async function refreshScene() {
   if (token === sceneToken) hideLoading();
   updateDims();
 }
+
 // ============================================================================
 // Thumbnails — captured from the live renderer once a model has been framed
 // ============================================================================
@@ -527,6 +625,7 @@ function refreshThumbButtons() {
     }
   });
 }
+
 // ============================================================================
 // Pricing
 // ============================================================================
@@ -591,6 +690,7 @@ function updateDims() {
   else if (cat === 'accent') dims = cfg.sizes.find((z) => z.id === s.size)?.dims || '';
   document.getElementById('viewer-dims').textContent = dims;
 }
+
 // ============================================================================
 // UI builders
 // ============================================================================
@@ -687,6 +787,14 @@ function buildStepperRow(container, value, min, max, onChange, labelFn) {
   row.appendChild(minus); row.appendChild(val); row.appendChild(plus);
   container.appendChild(row);
 }
+
+function buildTextureToggle(container, label, active, onToggle) {
+  const row = el('div', 'texture-toggle' + (active ? ' active' : ''));
+  row.innerHTML = `<span class="tt-track"><span class="tt-thumb"></span></span><span class="tt-label">${label}: <strong>${active ? 'On' : 'Off'}</strong></span>`;
+  row.addEventListener('click', () => onToggle(!active));
+  container.appendChild(row);
+}
+
 // ---------------------------------------------------------------------------
 function renderPanel() {
   const cat = state.category;
@@ -716,6 +824,7 @@ function renderPanel() {
 
     const s3 = stepBlock(3, 'Fabric & Color');
     buildSwatchRow(s3, cfg.swatchGroup, s.color, (id) => { s.color = id; refreshAll(); });
+    buildTextureToggle(s3, 'Woven Fabric Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s3);
 
     const s4 = stepBlock(4, 'Add Modules');
@@ -734,9 +843,12 @@ function renderPanel() {
 
     const s3 = stepBlock(3, 'Fabric & Color');
     buildSwatchRow(s3, cfg.swatchGroup, s.color, (id) => { s.color = id; refreshAll(); });
+    buildTextureToggle(s3, 'Woven Fabric Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s3);
 
   } else if (cat === 'wardrobe') {
+    const variant = cfg.variants.find(v => v.id === s.variant);
+
     const s1 = stepBlock(1, 'Select Variation');
     buildThumbRow(s1, cfg.variants, s.variant, (v) => assetUrl(cfg.assetDir, v.file),
       (id) => { s.variant = id; refreshAll(); });
@@ -746,9 +858,21 @@ function renderPanel() {
     buildChipRow(s2, cfg.widths, s.width, (id) => { s.width = id; refreshAll(); }, (opt) => opt.dims);
     steps.appendChild(s2);
 
-    const s3 = stepBlock(3, 'Finish & Color');
-    buildSwatchRow(s3, cfg.swatchGroup, s.finish, (id) => { s.finish = id; refreshAll(); });
-    steps.appendChild(s3);
+    if (variant.twoTone) {
+      const s3 = stepBlock(3, 'Frame Finish');
+      buildSwatchRow(s3, 'wood', s.frameColor, (id) => { s.frameColor = id; refreshAll(); });
+      steps.appendChild(s3);
+
+      const s4 = stepBlock(4, 'Door Accent Color');
+      buildSwatchRow(s4, 'wood', s.doorColor, (id) => { s.doorColor = id; refreshAll(); });
+      buildTextureToggle(s4, 'Wood Grain Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
+      steps.appendChild(s4);
+    } else {
+      const s3 = stepBlock(3, 'Finish & Color');
+      buildSwatchRow(s3, cfg.swatchGroup, s.finish, (id) => { s.finish = id; refreshAll(); });
+      buildTextureToggle(s3, 'Wood Grain Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
+      steps.appendChild(s3);
+    }
 
   } else if (cat === 'dining') {
     const variant = cfg.variants.find(v => v.id === s.variant);
@@ -770,6 +894,7 @@ function renderPanel() {
 
     const s4 = stepBlock(4, 'Chair Upholstery');
     buildSwatchRow(s4, 'fabric', s.fabricColor, (id) => { s.fabricColor = id; refreshAll(); });
+    buildTextureToggle(s4, 'Wood Grain + Fabric Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s4);
 
   } else if (cat === 'accent') {
@@ -783,6 +908,7 @@ function renderPanel() {
 
     const s3 = stepBlock(3, 'Top Finish');
     buildSwatchRow(s3, 'wood', s.woodColor, (id) => { s.woodColor = id; refreshAll(); });
+    buildTextureToggle(s3, 'Wood Grain Texture', s.textured, (val) => { s.textured = val; refreshAll(); });
     steps.appendChild(s3);
 
     const s4 = stepBlock(4, 'Leg Finish');
@@ -800,6 +926,7 @@ function refreshAll() {
   refreshScene();
   buildConfigDots();
 }
+
 // ============================================================================
 // Nav tabs
 // ============================================================================
@@ -854,6 +981,7 @@ function stepAxis(dir) {
 
 document.getElementById('prevConfig').addEventListener('click', () => stepAxis(-1));
 document.getElementById('nextConfig').addEventListener('click', () => stepAxis(1));
+
 // ============================================================================
 // Add to cart (dummy)
 // ============================================================================
@@ -864,6 +992,7 @@ document.getElementById('addToCart').addEventListener('click', () => {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2200);
 });
+
 // ============================================================================
 // Boot
 // ============================================================================
