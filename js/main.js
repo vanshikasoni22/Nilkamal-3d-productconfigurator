@@ -536,14 +536,20 @@ async function renderSofaScene(token) {
 
   moduleRoot.clear();
   const box = new THREE.Box3().setFromObject(obj);
+  // Accent table/ottoman footprints are ~0.27-0.3 units in radius — offset
+  // by that radius plus a real visible gap so they sit clearly beside the
+  // sofa's arm instead of clipping into it.
+  const SIDE_TABLE_RADIUS = 0.27;
+  const OTTOMAN_RADIUS = 0.30;
+  const SIDE_GAP = 0.22;
   if (s.modules.sidetable) {
     const t = buildAccentTable({ shape: 'round', woodHex: '#b98a53', metalHex: '#2b2b2b', scale: 1, textured: s.textured });
-    t.position.set(box.max.x + 0.34, 0, 0);
+    t.position.set(box.max.x + SIDE_TABLE_RADIUS + SIDE_GAP, 0, 0);
     moduleRoot.add(t);
   }
   if (s.modules.ottoman) {
     const o = buildOttoman({ hex: SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, textured: s.textured });
-    o.position.set(box.min.x - 0.32, 0, 0.15);
+    o.position.set(box.min.x - OTTOMAN_RADIUS - SIDE_GAP, 0, 0.15);
     moduleRoot.add(o);
   }
   captureThumbnailFor(url, obj);
