@@ -510,10 +510,16 @@ async function renderSofaScene(token) {
   if (token !== sceneToken) return;
 
   normalize(obj);
-  // NOTE: sofa1-var1.glb and sofa1-var2.glb (same for sofa2) share the exact
-  // same geometry/bounding box — they're color/texture bakes of one fixed
-  // sofa, not distinct 2-seat/3-seat models. Non-uniformly stretching one to
-  // fake a size difference warps the mesh badly, so no stretch is applied.
+  // sofa1-var1.glb and sofa1-var2.glb (same for sofa2) share the exact same
+  // source geometry/bounding box — they're texture bakes of one fixed sofa,
+  // not distinct 2-seat/3-seat models. We scale the 3-seater relative to the
+  // 2-seater baseline so it actually reads as bigger on screen. This used to
+  // warp the mesh badly, but that turned out to be caused by the Boston GLBs
+  // shipping with KHR_materials_unlit + no vertex normals (now fixed) — the
+  // stretch itself renders cleanly once the material/normals are correct.
+  const baseLayout = cfg.layouts[0];
+  obj.scale.x *= layout.widthCm / baseLayout.widthCm;
+  obj.scale.z *= layout.depthCm / baseLayout.depthCm;
   applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
