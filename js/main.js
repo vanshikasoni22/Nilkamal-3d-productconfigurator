@@ -418,7 +418,7 @@ const woodTexture = makeWoodCanvasTexture();
 const state = {
   category: 'sofa',
   perCategory: {
-    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: false },
+    sofa: { variant: 'boston', layout: 'seat2', color: 'charcoal', modules: {}, textured: true },
     bed: { variant: 'dream', size: 'queen', color: 'charcoal', textured: false },
     wardrobe: { variant: 'classic', finish: 'walnut', frameColor: 'walnut', doorColor: 'oak', width: 'standard', textured: false },
     dining: { variant: 'ovalis', seats: 6, woodColor: 'walnut', fabricColor: 'charcoal', textured: false },
@@ -469,11 +469,10 @@ async function renderSofaScene(token) {
   if (token !== sceneToken) return;
 
   normalize(obj);
-  // Scale relative to the 2-seater baseline so a 3-seater actually reads as
-  // bigger on screen, instead of every layout being re-fit to the same size.
-  const baseLayout = cfg.layouts[0];
-  obj.scale.x *= layout.widthCm / baseLayout.widthCm;
-  obj.scale.z *= layout.depthCm / baseLayout.depthCm;
+  // NOTE: sofa1-var1.glb and sofa1-var2.glb (same for sofa2) share the exact
+  // same geometry/bounding box — they're color/texture bakes of one fixed
+  // sofa, not distinct 2-seat/3-seat models. Non-uniformly stretching one to
+  // fake a size difference warps the mesh badly, so no stretch is applied.
   applyFinish(obj, cfg.materialTargets.fabric, SWATCHES.fabric.find(sw => sw.id === s.color)?.hex, 'fabric', s.textured);
   productRoot.clear();
   productRoot.add(obj);
