@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nilkamal Infinia — Modular Sofa Builder</title>
+<link rel="stylesheet" href="./css/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/three.module.min.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 3 C11 3 5 11 5 20 C5 29 11 37 20 37 C29 37 35 29 35 20 C35 11 29 3 20 3 Z" fill="#2E9BDB"/>
+      <path d="M20 12 L26 24 L20 21 L14 24 Z" fill="#fff"/>
+    </svg>
+    <div class="brand-text">
+      <div class="brand-name">Nilkamal <span class="reg">&reg;</span></div>
+      <div class="brand-tag">Infinia Modular Sofa Builder</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="badge">PROTOTYPE — customizable-upgrade</span>
+    <a class="back-link" href="../index.html">&larr; Main demo</a>
+  </div>
+</header>
+
+<div class="app">
+
+  <aside class="palette">
+    <div class="palette-head">
+      <h2>Add a module</h2>
+      <p class="hint">Click to add, drag on the floor to position. Press <kbd>R</kbd> to rotate the selected module 90&deg;, <kbd>Delete</kbd> to remove it.</p>
+    </div>
+    <div class="module-grid" id="moduleGrid"></div>
+
+    <div class="palette-section">
+      <h3>Quick Start</h3>
+      <div class="preset-row" id="presetRow"></div>
+    </div>
+
+    <div class="palette-section">
+      <button class="clear-btn" id="clearAllBtn">Clear layout</button>
+    </div>
+  </aside>
+
+  <div class="viewer-col">
+    <canvas id="viewer-canvas"></canvas>
+
+    <div class="footprint-badge" id="footprintBadge">0.0m &times; 0.0m</div>
+
+    <div class="viewer-loading" id="viewer-loading">
+      <div class="spinner"></div>
+      <span>Loading modules&hellip;</span>
+    </div>
+
+    <div class="viewer-hint">&#8635; Drag empty space to rotate view &middot; Scroll to zoom &middot; Drag a module to move it</div>
+  </div>
+
+  <aside class="side-panel">
+    <div class="panel-block">
+      <h2>Material</h2>
+      <div class="family-toggle" id="familyToggle">
+        <button class="family-btn active" data-family="fabric">Fabric</button>
+        <button class="family-btn" data-family="leather">Leatherette</button>
+      </div>
+      <div class="swatch-row" id="colorSwatches"></div>
+    </div>
+
+    <div class="panel-block">
+      <h2>Bill of Materials</h2>
+      <div class="bom-list" id="bomList">
+        <div class="bom-empty">No modules placed yet — add one from the left.</div>
+      </div>
+    </div>
+
+    <div class="panel-block price-block">
+      <div class="price-row">
+        <span>Total</span>
+        <span class="price-total" id="priceTotal">&#8377;0</span>
+      </div>
+      <button class="add-cart-btn" id="addToCartBtn">Add to Cart</button>
+      <div class="demo-note">Demo UI only — Shopify checkout wired in production build</div>
+    </div>
+  </aside>
+
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
