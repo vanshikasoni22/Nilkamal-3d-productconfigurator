@@ -13,9 +13,11 @@ import { RoomEnvironment } from '../../vendor/three/RoomEnvironment.js';
 // and are not bottom-center pivoted (verified by inspection before writing
 // this). Every module's attachment edges below are computed from its own
 // real bounding box instead, and each module is re-centered onto the floor
-// (Y=0) at load time. Modules connect ONLY via their left/right edges (never
-// front/back), which structurally rules out invalid back-to-back/front-to-
-// front connections without needing a special case for it.
+// (Y=0) at load time. Modules can connect via any of their 4 sides (left/
+// right/front/back) — a straight run only ever needs left/right, but a
+// corner turn needs a rotated module's front/back too (see localEdges/
+// findBestSnap). Back-to-back is the one pairing explicitly disallowed,
+// since two backrests pressed together isn't a real seating layout.
 // ============================================================================
 
 // ----------------------------------------------------------------------
