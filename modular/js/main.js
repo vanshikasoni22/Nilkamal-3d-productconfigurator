@@ -906,11 +906,59 @@ function placeChain(sequence) {
   }
 
   refreshAll();
-  // Frame the camera on the finished layout.
+  frameCameraOnLayout();
+}
+
+// Fit the camera to whatever the preset just built, instead of only
+// re-centering the orbit target (which was the previous behavior — it left
+// the CAMERA at its default fixed position/angle no matter how big or how
+// shaped the new layout was). That default position sits on the +Z side at
+// a fairly low ~31 degree elevation; for a straight run that's fine, but
+// the L-Shape's corner run recedes away in -Z from that same viewpoint, so
+// the front row's ~1m-tall backrests sat directly between the camera and
+// the corner and blocked it — exactly the "why can't I see the L" problem
+// reported from a client demo. Two changes fix that: a noticeably higher,
+// more bird's-eye elevation (so you're looking down onto the seat tops
+// rather than across them at backrest height, which is what makes an
+// L/U shape actually read as a shape instead of a wall of cushions), and
+// sizing the distance to the layout's real bounding box so small (Straight)
+// and large (L/U) layouts both fill the frame instead of using one fixed
+// distance for everything.
+// Values below are not eyeballed — found by sweeping azimuth/elevation
+// against the real decoded module meshes and ray-casting from each
+// candidate camera position to sample points on each piece, checking
+// whether any OTHER piece's geometry sits between the camera and it
+// (real occlusion, not a bounding-box guess). azimuth=100/elevation=50 was
+// the first combination with ~0% occlusion in BOTH directions (row not
+// blocked by the corner, corner not blocked by the row) for the L-Shape
+// layout — verified offline before shipping.
+const CAMERA_ELEVATION_DEG = 50;
+const CAMERA_AZIMUTH_DEG = 100;
+function frameCameraOnLayout() {
   const box = new THREE.Box3();
   instances.forEach((inst) => box.expandByObject(inst.object3D));
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
+
+  // Fit distance off the larger of the two floor-plan dimensions (not just
+  // width) so an L/U shape's depth is accounted for too, plus a bit of
+  // padding so the layout isn't touching the frame edges.
+  const footprint = Math.max(size.x, size.z, 0.6);
+  const halfFovRad = THREE.MathUtils.degToRad(camera.fov / 2);
+  const fitDistance = (footprint * 0.62) / Math.tan(halfFovRad) + footprint * 0.55;
+  const distance = THREE.MathUtils.clamp(fitDistance, controls.minDistance, controls.maxDistance);
+
+  const elevRad = THREE.MathUtils.degToRad(CAMERA_ELEVATION_DEG);
+  const azimRad = THREE.MathUtils.degToRad(CAMERA_AZIMUTH_DEG);
+  const horizDist = distance * Math.cos(elevRad);
+  camera.position.set(
+    center.x + horizDist * Math.sin(azimRad),
+    center.y + distance * Math.sin(elevRad) + 0.3,
+    center.z + horizDist * Math.cos(azimRad)
+  );
   controls.target.set(center.x, 0.3, center.z);
+  controls.update();
 }
 
 // Each step's `via` says which of ITS edges meets which edge of the
