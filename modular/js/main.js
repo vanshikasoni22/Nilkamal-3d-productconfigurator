@@ -777,15 +777,23 @@ const PRESETS = {
     { type: 'single', rotationY: 0 },
     { type: 'armrest', rotationY: 180, via: { mine: 'right', prev: 'right' } },
   ],
+  // Matches the client's reference screenshot: a 3-piece straight run
+  // (Armrest, Single, Single) that turns 90 degrees into a second Single
+  // (the corner-pivot piece) capped by a second Armrest — no 'long'
+  // Extension Bench piece in this composition. Verified against the
+  // rendered assets the same way ushape was: 'long' has no backrest at all
+  // (low bench, ~47cm tall) which doesn't match the tall-backrest corner
+  // piece in the reference, while 'single' does.
   lshape: [
+    { type: 'armrest', rotationY: 0 },
+    { type: 'single', rotationY: 0 },
+    { type: 'single', rotationY: 0 },
+    // Corner turn: the 3rd single stays at rotationY=0 (end of the
+    // straight run); the 4th single rotates 90 and connects via its own
+    // left edge to the 3rd single's back edge (a 90-rotated module's
+    // left/right edges swing to face front/back in world space).
+    { type: 'single', rotationY: 90, via: { mine: 'left', prev: 'back' } },
     { type: 'armrest', rotationY: 90 },
-    { type: 'long', rotationY: 90, via: { mine: 'left', prev: 'right' } },
-    // Corner turn: 'long' at rotY=90 has both its left/right edges facing
-    // front/back in world space now, so the next module connects via ITS
-    // front edge, not its left edge.
-    { type: 'single', rotationY: 0, via: { mine: 'front', prev: 'right' } },
-    { type: 'single', rotationY: 0, via: { mine: 'left', prev: 'right' } },
-    { type: 'armrest', rotationY: 180, via: { mine: 'right', prev: 'right' } },
   ],
   // Matches the client's reference screenshot exactly: two reclined Single
   // Seat chairs bookending two Console Table units (the ones with the
