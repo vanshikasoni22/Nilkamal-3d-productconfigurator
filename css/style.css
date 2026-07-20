@@ -1,7 +1,13 @@
 :root {
-  --brand: #2E9BDB;
-  --brand-dark: #1D6FA0;
-  --brand-tint: #EAF5FC;
+  /* Rebrand: blue -> Nilkamal red (#C80000), matching nilkamalhomes.com.
+     --brand-dark/--brand-tint re-derived at the same HSL saturation/
+     lightness ratios as the original blue trio (same approach used for
+     the /modular/ configurator's rebrand) so hover/tint states keep the
+     same relative contrast. White-on-brand text (.cta, .navtab.active,
+     .step-num) checked at 6.08:1 against #C80000, passes WCAG AA. */
+  --brand: #C80000;
+  --brand-dark: #8D0101;
+  --brand-tint: #FCEAEA;
   --navy: #0F2A47;
   --sale: #D6273C;
   --ink: #1a1a1a;
