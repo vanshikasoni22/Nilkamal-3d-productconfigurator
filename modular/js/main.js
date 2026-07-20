@@ -227,6 +227,15 @@ function assetUrl(family, type) {
   return `./assets/${family}/${MODULE_DEFS[type].file}`;
 }
 
+// MODULE_DEFS.width/depth/height start as recorded reference values, but
+// are OVERWRITTEN below with the real measured bounding box of each loaded
+// GLB the moment it loads — every edge/snap/overlap computation in this
+// file reads MODULE_DEFS[type].width/depth, so once this runs, ALL of that
+// math is driven by the actual asset geometry, not a hand-entered number.
+// A >2mm mismatch between the recorded and measured value is logged loudly
+// so a future asset swap can't silently drift out of sync with the numbers
+// the snap engine relies on.
+const DIM_MISMATCH_TOLERANCE = 0.002; // meters
 function loadOne(family, type) {
   return new Promise((resolve, reject) => {
     gltfLoader.load(assetUrl(family, type), (gltf) => {
@@ -239,6 +248,24 @@ function loadOne(family, type) {
       // so it must stay free for that and not carry this offset itself.
       const box = new THREE.Box3().setFromObject(inner);
       inner.position.y -= box.min.y;
+
+      const measuredWidth = box.max.x - box.min.x;
+      const measuredDepth = box.max.z - box.min.z;
+      const measuredHeight = box.max.y - box.min.y;
+      const def = MODULE_DEFS[type];
+      const widthDiff = Math.abs(def.width - measuredWidth);
+      const depthDiff = Math.abs(def.depth - measuredDepth);
+      if (widthDiff > DIM_MISMATCH_TOLERANCE || depthDiff > DIM_MISMATCH_TOLERANCE) {
+        console.error(
+          `[assets] ${family}/${type}: measured bbox (w=${measuredWidth.toFixed(4)}, d=${measuredDepth.toFixed(4)}) ` +
+          `differs from recorded MODULE_DEFS (w=${def.width}, d=${def.depth}) by more than ${DIM_MISMATCH_TOLERANCE}m — ` +
+          `overwriting with the measured value so snap/overlap math stays correct.`
+        );
+      }
+      def.width = measuredWidth;
+      def.depth = measuredDepth;
+      def.height = measuredHeight;
+
       const wrapper = new THREE.Group();
       wrapper.add(inner);
       wrapper.updateMatrixWorld(true);
@@ -887,21 +914,69 @@ function placeChain(sequence) {
   // when it's done.
   selectInstance(null);
 
-  // Validation: every module placed after the first one MUST have resolved
-  // via a successful findBestSnap() call above (failedSteps) AND must
-  // still show a live connection now (disconnected) — the second check
-  // catches anything that never got backfilled by a later step. If either
-  // list is non-empty, the build is broken and should not silently pass as
-  // a finished layout.
+  // Validation, run in code every time a preset builds (not just checked
+  // offline before shipping) — three independent checks, all of which must
+  // pass or the layout is flagged as broken rather than silently rendered:
+  //
+  // 1) every module placed after the first one MUST have resolved via a
+  //    successful findBestSnap()/establishCornerConnection() call above
+  //    (failedSteps) AND must still show a live connection now
+  //    (disconnected) — the second check catches anything that never got
+  //    backfilled by a later step.
+  // 2) every rotation actually used is one of the 4 the engine supports —
+  //    this system can only ever produce axis-aligned (0/90/180/270)
+  //    layouts, so a genuinely diagonal rotation appearing here would mean
+  //    something wrote to inst.rotationY outside this engine entirely.
+  // 3) no two placed modules' real, rotation-aware bounding boxes actually
+  //    overlap in BOTH the X and Z projections at once (touching along a
+  //    shared seam with zero gap is fine and expected; overlapping is not)
+  //    — computed from each module's live MODULE_DEFS.width/depth, which
+  //    loadOne() now measures directly off the loaded GLB rather than a
+  //    hand-entered constant.
   if (instances.length > 1) {
     const disconnected = instances.filter((inst) => SNAP_SIDES.every((s) => inst.connections[s] == null));
-    if (failedSteps.length > 0 || disconnected.length > 0) {
+
+    const badRotations = instances.filter((inst) => !SNAP_ROTATIONS.includes(((inst.rotationY % 360) + 360) % 360));
+
+    const instanceAABB = (inst) => {
+      const { hw, hd } = halfExtents(inst.type);
+      const rad = THREE.MathUtils.degToRad(inst.rotationY);
+      const Y = new THREE.Vector3(0, 1, 0);
+      const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, lz]) => {
+        const v = new THREE.Vector3(lx, 0, lz).applyAxisAngle(Y, rad);
+        return { x: inst.x + v.x, z: inst.z + v.z };
+      });
+      return {
+        minX: Math.min(...corners.map((c) => c.x)), maxX: Math.max(...corners.map((c) => c.x)),
+        minZ: Math.min(...corners.map((c) => c.z)), maxZ: Math.max(...corners.map((c) => c.z)),
+      };
+    };
+    const overlaps = [];
+    for (let a = 0; a < instances.length; a++) {
+      for (let b = a + 1; b < instances.length; b++) {
+        const A = instanceAABB(instances[a]);
+        const B = instanceAABB(instances[b]);
+        const overlapX = Math.min(A.maxX, B.maxX) - Math.max(A.minX, B.minX);
+        const overlapZ = Math.min(A.maxZ, B.maxZ) - Math.max(A.minZ, B.minZ);
+        if (overlapX > 1e-6 && overlapZ > 1e-6) {
+          overlaps.push({ a: instances[a], b: instances[b], overlapX, overlapZ });
+        }
+      }
+    }
+
+    const ok = failedSteps.length === 0 && disconnected.length === 0 && badRotations.length === 0 && overlaps.length === 0;
+    if (!ok) {
       console.error(
         `[preset] BUILD FAILED — ${failedSteps.length} module(s) never snapped at placement time, ` +
-        `${disconnected.length} module(s) show no connection now. This layout should not ship as-is.`
+        `${disconnected.length} module(s) show no live connection, ` +
+        `${badRotations.length} module(s) at a non-90-degree rotation, ` +
+        `${overlaps.length} real bounding-box overlap(s) detected. This layout should not ship as-is.`
       );
+      overlaps.forEach(({ a, b, overlapX, overlapZ }) => {
+        console.error(`  overlap: ${a.type}#${a.id} vs ${b.type}#${b.id} — ${overlapX.toFixed(4)}m x ${overlapZ.toFixed(4)}m`);
+      });
     } else {
-      console.log(`[preset] build OK — all ${instances.length} modules confirmed snapped.`);
+      console.log(`[preset] build OK — all ${instances.length} modules confirmed snapped, axis-aligned, and non-overlapping.`);
     }
   }
 
