@@ -285,7 +285,13 @@ function worldEdge(instance, side) {
 }
 
 function createInstance(type, x = 0, z = 0, rotationY = 0) {
-  const inst = { id: nextId++, type, x, z, rotationY, object3D: null };
+  // connections tracks, per side, which OTHER instance id (if any) is
+  // currently snapped there — lets the snap engine refuse to double-connect
+  // a second module onto an edge that's already occupied.
+  const inst = {
+    id: nextId++, type, x, z, rotationY, object3D: null,
+    connections: { left: null, right: null, front: null, back: null },
+  };
   rebuildInstanceObject(inst);
   instances.push(inst);
   selectInstance(inst.id);
@@ -310,6 +316,7 @@ function removeInstance(id) {
   const idx = instances.findIndex((i) => i.id === id);
   if (idx === -1) return;
   const [inst] = instances.splice(idx, 1);
+  clearConnections(inst);
   moduleRoot.remove(inst.object3D);
   if (selectedId === id) selectedId = null;
   refreshAll();
@@ -366,7 +373,78 @@ function findBestSnap(draggedInst) {
     x: draggedInst.x + delta.x,
     z: draggedInst.z + delta.z,
     ghostWorldPos: best.oEdge.worldPos.clone(),
+    other: best.other,
+    oSide: best.oSide,
+    dSide: best.dSide,
   };
+}
+
+// -- Connection bookkeeping ---------------------------------------------
+// A connection is symmetric: if A's left touches B's right, both A.left
+// and B.right point at each other's id. This is what lets the interactive
+// snap search below refuse to place a module onto an edge someone else is
+// already occupying (the "block invalid connections" requirement) — the
+// asset set has no distinct connector "types" beyond side geometry, so the
+// two concrete rules enforced are: no back-to-back, and no double-occupying
+// a single edge.
+function clearConnections(inst) {
+  SNAP_SIDES.forEach((side) => {
+    const otherId = inst.connections[side];
+    if (otherId == null) return;
+    const other = instances.find((i) => i.id === otherId);
+    if (other) {
+      SNAP_SIDES.forEach((oSide) => { if (other.connections[oSide] === inst.id) other.connections[oSide] = null; });
+    }
+    inst.connections[side] = null;
+  });
+}
+
+function establishConnection(a, aSide, b, bSide) {
+  a.connections[aSide] = b.id;
+  b.connections[bSide] = a.id;
+}
+
+function isEdgeOccupied(other, oSide, exceptId) {
+  const occupant = other.connections[oSide];
+  return occupant != null && occupant !== exceptId;
+}
+
+// Interactive drag search: unlike findBestSnap (used by presets, which
+// already know the correct target rotation for each module), a module
+// being dragged by hand can arrive at ANY rotation, and a corner connection
+// needs a DIFFERENT rotation than a straight one. So this searches every
+// 90-degree rotation and every edge pair, and returns whichever valid,
+// unoccupied combination would land closest to where the module currently
+// is — i.e. "if the user let go right now, what's the nearest thing it
+// would snap to, and how would it need to turn to fit."
+const SNAP_ROTATIONS = [0, 90, 180, 270];
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+function findBestSnapAnyRotation(draggedInst) {
+  let best = null;
+  for (const other of instances) {
+    if (other.id === draggedInst.id) continue;
+    for (const oSide of SNAP_SIDES) {
+      if (isEdgeOccupied(other, oSide, draggedInst.id)) continue;
+      const oEdge = worldEdge(other, oSide);
+      for (const rot of SNAP_ROTATIONS) {
+        const rad = THREE.MathUtils.degToRad(rot);
+        for (const dSide of SNAP_SIDES) {
+          if (dSide === 'back' && oSide === 'back') continue;
+          const localE = localEdges(draggedInst.type)[dSide];
+          const rotatedLocal = localE.local.clone().applyAxisAngle(Y_AXIS, rad);
+          const rotatedNormal = localE.normal.clone().applyAxisAngle(Y_AXIS, rad);
+          if (rotatedNormal.dot(oEdge.normal) >= SNAP_NORMAL_DOT) continue;
+          const candidateX = oEdge.worldPos.x - rotatedLocal.x;
+          const candidateZ = oEdge.worldPos.z - rotatedLocal.z;
+          const dist = Math.hypot(candidateX - draggedInst.x, candidateZ - draggedInst.z);
+          if (dist < SNAP_DIST && (!best || dist < best.dist)) {
+            best = { dist, x: candidateX, z: candidateZ, rotationY: rot, other, oSide, dSide, ghostWorldPos: oEdge.worldPos.clone() };
+          }
+        }
+      }
+    }
+  }
+  return best;
 }
 
 // ============================================================================
@@ -410,7 +488,12 @@ canvas.addEventListener('pointerdown', (ev) => {
     selectInstance(inst.id);
     const floorPt = floorPointFromEvent(ev);
     const grabOffset = floorPt ? new THREE.Vector3(inst.x - floorPt.x, 0, inst.z - floorPt.z) : new THREE.Vector3();
-    dragState = { inst, grabOffset };
+    // Picking a module up detaches it from whatever it was snapped to —
+    // this is what makes "drag away to disconnect" work: the old slot is
+    // freed immediately, and it only reattaches (see endDrag) if it's
+    // dropped back within snapping range of a compatible edge.
+    clearConnections(inst);
+    dragState = { inst, grabOffset, baseRotationY: inst.rotationY };
     controls.enabled = false;
     canvas.setPointerCapture(ev.pointerId);
   }
@@ -420,13 +503,17 @@ canvas.addEventListener('pointermove', (ev) => {
   if (!dragState) return;
   const floorPt = floorPointFromEvent(ev);
   if (!floorPt) return;
-  const { inst, grabOffset } = dragState;
+  const { inst, grabOffset, baseRotationY } = dragState;
   inst.x = floorPt.x + grabOffset.x;
   inst.z = floorPt.z + grabOffset.z;
 
-  const snap = findBestSnap(inst);
+  const snap = findBestSnapAnyRotation(inst);
   if (snap) {
+    // Live preview: show the module already sitting at the position AND
+    // rotation it would land at if released right now, before the user
+    // commits to the drop.
     inst.object3D.position.set(snap.x, 0, snap.z);
+    inst.object3D.rotation.y = THREE.MathUtils.degToRad(snap.rotationY);
     const screen = snap.ghostWorldPos.clone().project(camera);
     const rect = canvas.getBoundingClientRect();
     snapGhost.style.left = `${rect.left + (screen.x * 0.5 + 0.5) * rect.width}px`;
@@ -435,6 +522,7 @@ canvas.addEventListener('pointermove', (ev) => {
     dragState.pendingSnap = snap;
   } else {
     inst.object3D.position.set(inst.x, 0, inst.z);
+    inst.object3D.rotation.y = THREE.MathUtils.degToRad(baseRotationY);
     snapGhost.style.display = 'none';
     dragState.pendingSnap = null;
   }
@@ -443,9 +531,17 @@ canvas.addEventListener('pointermove', (ev) => {
 
 function endDrag() {
   if (!dragState) return;
-  const { inst, pendingSnap } = dragState;
-  if (pendingSnap) { inst.x = pendingSnap.x; inst.z = pendingSnap.z; }
+  const { inst, pendingSnap, baseRotationY } = dragState;
+  if (pendingSnap) {
+    inst.x = pendingSnap.x;
+    inst.z = pendingSnap.z;
+    inst.rotationY = pendingSnap.rotationY;
+    establishConnection(inst, pendingSnap.dSide, pendingSnap.other, pendingSnap.oSide);
+  } else {
+    inst.rotationY = baseRotationY;
+  }
   inst.object3D.position.set(inst.x, 0, inst.z);
+  inst.object3D.rotation.y = THREE.MathUtils.degToRad(inst.rotationY);
   snapGhost.style.display = 'none';
   dragState = null;
   controls.enabled = true;
@@ -459,6 +555,7 @@ window.addEventListener('keydown', (ev) => {
   const inst = instances.find((i) => i.id === selectedId);
   if (!inst) return;
   if (ev.key === 'r' || ev.key === 'R') {
+    clearConnections(inst); // rotating in place invalidates any existing snap
     inst.rotationY = (inst.rotationY + 90) % 360;
     inst.object3D.rotation.y = THREE.MathUtils.degToRad(inst.rotationY);
     updateFootprint();
@@ -602,6 +699,7 @@ function placeChain(sequence) {
       const snap = findBestSnap(inst);
       if (snap) {
         inst.x = snap.x; inst.z = snap.z; inst.object3D.position.set(inst.x, 0, inst.z);
+        establishConnection(inst, snap.dSide, snap.other, snap.oSide);
       } else {
         console.warn(`[preset] ${type} did not snap to previous ${prev.type} — check rotation combo`);
       }
