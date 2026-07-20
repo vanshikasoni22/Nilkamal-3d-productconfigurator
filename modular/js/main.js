@@ -172,6 +172,23 @@ contactShadow.renderOrder = -1;
 contactShadow.visible = false;
 scene.add(contactShadow);
 
+// Live footprint outline — a crisp rectangle on the floor tracing the exact
+// bounding box of all placed modules (distinct from the soft contactShadow
+// above, which is a decorative grounding effect, not a measurement). Kept
+// as a simple 5-point closed line loop whose vertices are rewritten every
+// time updateFootprint() runs, rather than rebuilding the geometry.
+const footprintOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
+  ]),
+  new THREE.LineBasicMaterial({ color: 0x2e9bdb, transparent: true, opacity: 0.85 })
+);
+footprintOutline.position.y = 0.006; // just above the contact shadow, avoids z-fighting
+footprintOutline.renderOrder = 0;
+footprintOutline.visible = false;
+scene.add(footprintOutline);
+
 const moduleRoot = new THREE.Group();
 scene.add(moduleRoot);
 
@@ -572,6 +589,7 @@ function updateFootprint() {
   if (!instances.length) {
     footprintBadge.textContent = '0.0m × 0.0m';
     contactShadow.visible = false;
+    footprintOutline.visible = false;
     return;
   }
   const box = new THREE.Box3();
@@ -582,6 +600,17 @@ function updateFootprint() {
   contactShadow.visible = true;
   contactShadow.position.set(center.x, 0.003, center.z);
   contactShadow.scale.set(Math.max(size.x, 0.3) * 1.3, Math.max(size.z, 0.3) * 1.3, 1);
+
+  // Rewrite the outline's 4 corners to exactly match the live bounding box.
+  const positions = footprintOutline.geometry.attributes.position;
+  const corners = [
+    [box.min.x, box.min.z], [box.max.x, box.min.z],
+    [box.max.x, box.max.z], [box.min.x, box.max.z],
+  ];
+  corners.forEach(([x, z], i) => positions.setXYZ(i, x, 0, z));
+  positions.needsUpdate = true;
+  footprintOutline.geometry.computeBoundingSphere();
+  footprintOutline.visible = true;
 }
 
 // ============================================================================
