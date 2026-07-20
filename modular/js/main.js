@@ -740,6 +740,15 @@ function placeChain(sequence) {
     }
     prev = inst;
   });
+  // createInstance() auto-selects every module it creates (that's the
+  // correct behavior for a single manual placement from the palette), but
+  // during a preset build it means the LAST module placed is left selected
+  // and highlighted afterward — visually a random module (usually the end-
+  // cap Armrest) shows a blue tint blended into its material that every
+  // other module doesn't have. A preset places a whole finished layout, not
+  // a single piece the user is now editing, so nothing should stay selected
+  // when it's done.
+  selectInstance(null);
   refreshAll();
   // Frame the camera on the finished layout.
   const box = new THREE.Box3();
