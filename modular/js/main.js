@@ -787,15 +787,20 @@ const PRESETS = {
     { type: 'single', rotationY: 0, via: { mine: 'left', prev: 'right' } },
     { type: 'armrest', rotationY: 180, via: { mine: 'right', prev: 'right' } },
   ],
+  // Matches the client's reference screenshot exactly: two reclined Single
+  // Seat chairs bookending two Console Table units (the ones with the
+  // built-in cupholder cutouts) — a straight row, not an actual 90-degree
+  // U-turn. Verified against the real shipped assets before writing this:
+  // single_sofa.glb is modeled in a reclined chaise pose (tall backrest
+  // into an extended low leg-rest) which is exactly the end-piece
+  // silhouette in the reference, and console.glb has real cupholder holes
+  // matching the middle units. Named "U-Shape" per the client's own
+  // terminology for this layout, not a geometric description.
   ushape: [
-    { type: 'armrest', rotationY: 90 },
-    { type: 'long', rotationY: 90, via: { mine: 'left', prev: 'right' } },
-    { type: 'single', rotationY: 0, via: { mine: 'front', prev: 'right' } },
-    { type: 'console', rotationY: 0, via: { mine: 'left', prev: 'right' } },
-    { type: 'single', rotationY: 0, via: { mine: 'left', prev: 'right' } },
-    // Second corner turn, closing the U back into a rotY=270 run.
-    { type: 'long', rotationY: 270, via: { mine: 'front', prev: 'right' } },
-    { type: 'armrest', rotationY: 270, via: { mine: 'right', prev: 'left' } },
+    { type: 'single', rotationY: 0 },
+    { type: 'console', rotationY: 0 },
+    { type: 'console', rotationY: 0 },
+    { type: 'single', rotationY: 0 },
   ],
 };
 
