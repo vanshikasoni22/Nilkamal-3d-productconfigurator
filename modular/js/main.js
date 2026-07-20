@@ -803,14 +803,34 @@ function buildModuleGrid() {
     card.innerHTML = `<div class="icon">${def.icon}</div><div class="name">${def.name}</div><div class="price">${formatINR(def.price)}</div>`;
     card.addEventListener('click', () => {
       // Place new modules just to the right of the current footprint so
-      // repeated clicks build a row instead of stacking at the origin.
+      // repeated clicks build a row instead of stacking at the origin. That
+      // starting spot is only an ESTIMATE (deliberately within snap range,
+      // same 0.05m-gap trick placeChain's presets use) — without the snap
+      // step below it was also the FINAL position, so clicking a module
+      // card repeatedly left a permanent, unsnapped 5cm gap between every
+      // module and no connection between them at all. Running it through
+      // the same rotation-aware snap search drag-and-drop uses fixes that:
+      // clicked modules now land genuinely flush and connected, exactly
+      // like dragging one into place by hand would.
       let x = 0;
       if (instances.length) {
         const box = new THREE.Box3();
         instances.forEach((inst) => box.expandByObject(inst.object3D));
         x = box.max.x + def.width / 2 + 0.05;
       }
-      createInstance(type, x, 0, 0);
+      const inst = createInstance(type, x, 0, 0);
+      if (instances.length > 1) {
+        const snap = findBestSnapAnyRotation(inst);
+        if (snap) {
+          inst.x = snap.x;
+          inst.z = snap.z;
+          inst.rotationY = snap.rotationY;
+          inst.object3D.position.set(inst.x, 0, inst.z);
+          inst.object3D.rotation.y = THREE.MathUtils.degToRad(inst.rotationY);
+          establishConnection(inst, snap.dSide, snap.other, snap.oSide);
+          updateFootprint();
+        }
+      }
     });
     grid.appendChild(card);
   });
