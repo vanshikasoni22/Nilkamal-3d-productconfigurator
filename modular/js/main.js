@@ -634,6 +634,11 @@ function setFamily(family) {
   currentFamily = family;
   if (!SWATCHES[family].some((s) => s.id === currentColorId)) currentColorId = SWATCHES[family][0].id;
   instances.forEach((inst) => rebuildInstanceObject(inst)); // swap geometry, keep x/z/rotationY
+  // rebuildInstanceObject clones a fresh material per instance, which resets
+  // emissive to its default (off) — so without this, whichever module was
+  // selected loses its highlight the moment you change material family.
+  // Re-applying the same selection after the rebuild restores it.
+  if (selectedId != null) selectInstance(selectedId);
   buildSwatchRow();
   refreshAll();
 }
