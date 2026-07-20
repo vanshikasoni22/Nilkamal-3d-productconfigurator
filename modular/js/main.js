@@ -1071,40 +1071,25 @@ const PRESETS = {
   // rendered assets the same way ushape was: 'long' has no backrest at all
   // (low bench, ~47cm tall) which doesn't match the tall-backrest corner
   // piece in the reference, while 'single' does.
+  // Simplified per direct client feedback after repeated trouble with a
+  // true 90-degree corner: every Infinia seat module (armrest, single) has
+  // its own full-height backrest, so a rotated corner seat always partly
+  // hides behind the row from a normal product-photo camera angle — a
+  // structural limitation of this module set that camera tweaks alone
+  // can't fully solve (documented in frameCameraOnLayout's comments).
+  // Dropped the corner turn entirely: a loveseat (Armrest + 2 Singles)
+  // closed by one Extension Bench flush against the 2nd seat, matching a
+  // classic sofa+chaise reference photo. The 'long' Extension Bench module
+  // has NO backrest (~0.47m tall vs ~1.06m for a Single) so it can't
+  // occlude or be occluded by anything, from any angle — and because
+  // every piece here stays at rotationY=0, this is a plain straight run:
+  // the same proven left<-right touch math as PRESETS.straight, no
+  // `corner` step, no rotation-mismatch math needed at all.
   lshape: [
     { type: 'armrest', rotationY: 0 },
     { type: 'single', rotationY: 0 },
     { type: 'single', rotationY: 0 },
-    // Corner turn: the 3rd single stays at rotationY=0 (end of the
-    // straight run); the 4th single rotates 90 and turns the corner.
-    //
-    // This is a `corner` step, not a plain `via` step: a single edge-center
-    // match only fixes ONE positional axis, which is fine when both pieces
-    // share the same perpendicular width (a straight run) but not here —
-    // the corner single's width becomes its X-extent once rotated 90, and
-    // that width (0.939, its unrotated depth) is much larger than the 3rd
-    // single's width (0.553) it's turning off of. A plain via touch
-    // (mine:'left', prev:'back') only fixes the Z (touching) axis and
-    // leaves X wherever the edge-center happens to land — centered on the
-    // row, overhanging ~0.19m past it on BOTH sides (the piece the client
-    // screenshot flagged as sticking out).
-    //
-    // touch fixes Z the same way (left<-back, no gap on the seam); flush
-    // additionally fixes X by making the corner's own FRONT edge coplanar
-    // with the row's right edge. Note: at rotationY=90, left/right swing to
-    // face front/back (Z-direction offsets) while front/back swing to face
-    // left/right (X-direction offsets) — that's why the X-flush pair has
-    // to be 'front', not 'right' (verified below; using 'right' here was
-    // tried first and failed findBestSnap entirely, caught by the new
-    // validation check rather than shipping silently broken). Both edges
-    // are real worldEdge() lookups, not an authored offset. Position +
-    // connection both come from findBestSnap() in placeChain, same as
-    // manual drag-and-drop.
-    {
-      type: 'single', rotationY: 90,
-      corner: { touch: { mine: 'left', prev: 'back' }, flush: { mine: 'front', prev: 'right' } },
-    },
-    { type: 'armrest', rotationY: 90 },
+    { type: 'long', rotationY: 0 },
   ],
   // Matches the client's reference screenshot exactly: two reclined Single
   // Seat chairs bookending two Console Table units (the ones with the
