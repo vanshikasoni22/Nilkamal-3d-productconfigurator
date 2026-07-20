@@ -25,24 +25,33 @@ import { RoomEnvironment } from '../../vendor/three/RoomEnvironment.js';
 // bounding box. Prices are indicative placeholders, consistent with the
 // rest of this demo.
 // ----------------------------------------------------------------------
+// Consistent line-icon system for the palette (24x24, uniform 1.6 stroke,
+// currentColor so hover/active states can recolor them via CSS) — replaces
+// the placeholder emoji, which varied wildly in weight/color/style between
+// icons and didn't read as a single designed set.
+const ICON_SINGLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="13" rx="2.5"/><line x1="5" y1="11" x2="19" y2="11"/><line x1="7" y1="17" x2="7" y2="20"/><line x1="17" y1="17" x2="17" y2="20"/></svg>`;
+const ICON_ARMREST = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="5" width="8" height="12" rx="3"/><line x1="9" y1="17" x2="9" y2="20"/><line x1="15" y1="17" x2="15" y2="20"/></svg>`;
+const ICON_LONG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="7" rx="2"/><line x1="5" y1="17" x2="5" y2="20"/><line x1="19" y1="17" x2="19" y2="20"/></svg>`;
+const ICON_CONSOLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="12" width="14" height="5" rx="1.5"/><path d="M6 12 V7 H18 V12"/><line x1="7" y1="17" x2="7" y2="20"/><line x1="17" y1="17" x2="17" y2="20"/></svg>`;
+
 const MODULE_DEFS = {
   single: {
-    id: 'single', name: 'Single Seat', icon: '🛋️',
+    id: 'single', name: 'Single Seat', icon: ICON_SINGLE,
     file: 'single_sofa.glb', width: 0.553, depth: 0.939, height: 1.058,
     price: 18999,
   },
   armrest: {
-    id: 'armrest', name: 'Armrest', icon: '🪑',
+    id: 'armrest', name: 'Armrest', icon: ICON_ARMREST,
     file: 'armrest.glb', width: 0.152, depth: 0.783, height: 0.623,
     price: 7499,
   },
   long: {
-    id: 'long', name: 'Extension Bench', icon: '🛏️',
+    id: 'long', name: 'Extension Bench', icon: ICON_LONG,
     file: 'sofa_long_part.glb', width: 0.550, depth: 0.564, height: 0.472,
     price: 14999,
   },
   console: {
-    id: 'console', name: 'Console Table', icon: '🪵',
+    id: 'console', name: 'Console Table', icon: ICON_CONSOLE,
     file: 'console.glb', width: 0.328, depth: 0.720, height: 0.575,
     price: 5999,
   },
