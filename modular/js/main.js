@@ -932,8 +932,21 @@ function placeChain(sequence) {
 // the first combination with ~0% occlusion in BOTH directions (row not
 // blocked by the corner, corner not blocked by the row) for the L-Shape
 // layout — verified offline before shipping.
-const CAMERA_ELEVATION_DEG = 50;
-const CAMERA_AZIMUTH_DEG = 100;
+// The first pass optimized purely for zero occlusion and landed on
+// azimuth=100, which turned out to be a bad choice for a different reason:
+// azimuth~90 is nearly aligned with the row's own axis, so at that angle
+// the row is viewed almost end-on (foreshortened into a small blob) while
+// the corner run unfurls broadside — technically unblocked, but it reads
+// as "two unrelated pieces," not an L. The row's axis sits at ~90 degrees
+// and the corner's axis at ~180 in this parameterization, so a genuinely
+// diagonal view needs to sit further toward their bisector (~135). 120/46
+// is the best point found in that direction that's still essentially
+// occlusion-free (corner 0%, row 4.7% — negligible self-occlusion at a
+// few grazing sample points, not a visible block) while being clearly past
+// the row's own axis, so both arms read as visibly perpendicular instead
+// of one foreshortened into the other.
+const CAMERA_ELEVATION_DEG = 46;
+const CAMERA_AZIMUTH_DEG = 120;
 function frameCameraOnLayout() {
   const box = new THREE.Box3();
   instances.forEach((inst) => box.expandByObject(inst.object3D));
