@@ -1,7 +1,14 @@
 :root {
-  --brand: #2E9BDB;
-  --brand-dark: #1D6FA0;
-  --brand-tint: #EAF5FC;
+  /* Nilkamal Homes red accent (nilkamalhomes.com uses red as its primary
+     brand color, distinct from the blue used on nilkamalfurniture.com that
+     the main single-product demo's palette is based on). Base #C80000
+     (Guardsman Red) is the best-sourced reference available at the time of
+     this change; --brand-dark/--brand-tint are derived from it at the same
+     saturation/lightness ratios the previous blue trio used, so hover and
+     tint states stay visually consistent with the new hue. */
+  --brand: #C80000;
+  --brand-dark: #8D0101;
+  --brand-tint: #FCEAEA;
   --navy: #0F2A47;
   --sale: #D6273C;
   --ink: #1a1a1a;

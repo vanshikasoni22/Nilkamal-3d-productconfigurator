@@ -182,7 +182,7 @@ const footprintOutline = new THREE.LineLoop(
     new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
   ]),
-  new THREE.LineBasicMaterial({ color: 0x2e9bdb, transparent: true, opacity: 0.85 })
+  new THREE.LineBasicMaterial({ color: 0xc80000, transparent: true, opacity: 0.85 })
 );
 footprintOutline.position.y = 0.006; // just above the contact shadow, avoids z-fighting
 footprintOutline.renderOrder = 0;
@@ -339,7 +339,7 @@ function removeInstance(id) {
   refreshAll();
 }
 
-const SELECT_EMISSIVE = new THREE.Color(0x2e9bdb);
+const SELECT_EMISSIVE = new THREE.Color(0xc80000); // brand red (rebrand from blue)
 function selectInstance(id) {
   selectedId = id;
   instances.forEach((inst) => {
