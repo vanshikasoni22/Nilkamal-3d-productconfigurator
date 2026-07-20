@@ -702,64 +702,178 @@ function refreshAll() {
 }
 
 // ============================================================================
-// Presets — reuse the exact same snap math as manual dragging, by placing
-// each module then nudging it onto the previous module's right edge.
+// Presets — reuse the exact same snap machinery as manual dragging
+// (worldEdge/findBestSnap/establishConnection), never authored/hardcoded
+// x-z-rotation numbers. Two kinds of steps are supported:
+//   `via: { mine, prev }`   — plain single-edge touch, for runs where every
+//                              module in the pair shares the same
+//                              perpendicular width (straight runs, and the
+//                              second arm of a corner once it's underway).
+//   `corner: { touch, flush }` — an L-turn between two modules of DIFFERENT
+//                              perpendicular width. A single edge-center
+//                              match can only satisfy ONE positional
+//                              constraint, but placing a wide piece flush
+//                              against a narrower row needs two: touch
+//                              (no gap on the seam) AND flush (the outer
+//                              edges must line up, not just the centers).
+//                              Both constraints are still pure edge lookups
+//                              via worldEdge() — no fudge constant.
 // ============================================================================
 function clearLayout() {
   [...instances].forEach((inst) => removeInstance(inst.id));
 }
 
+function resolveTouchPosition(type, rotationY, mine, prevSide, prev) {
+  const prevEdge = worldEdge(prev, prevSide);
+  const rad = THREE.MathUtils.degToRad(rotationY);
+  const localMine = localEdges(type)[mine].local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rad);
+  return { x: prevEdge.worldPos.x - localMine.x, z: prevEdge.worldPos.z - localMine.z };
+}
+
+// Corner placement: start from the touch pair (fixes the axis along the
+// touching seam, exactly like resolveTouchPosition), then override
+// whichever single axis the flush pair's normal points along, so that
+// mine's flush edge and prev's flush edge land on the same world
+// coordinate (coplanar/flush) instead of the touch pair's implicit
+// edge-center-to-edge-center result (which is what caused the overhang —
+// see PRESETS.lshape comment). Both edges come from the real per-type
+// dimensions via localEdges/worldEdge, so this is exact, not approximate.
+function resolveCornerPosition(type, rotationY, corner, prev) {
+  const rad = THREE.MathUtils.degToRad(rotationY);
+  const Y = new THREE.Vector3(0, 1, 0);
+  let { x, z } = resolveTouchPosition(type, rotationY, corner.touch.mine, corner.touch.prev, prev);
+
+  const prevFlushEdge = worldEdge(prev, corner.flush.prev);
+  const mineFlushEdge = localEdges(type)[corner.flush.mine];
+  const mineFlushLocal = mineFlushEdge.local.clone().applyAxisAngle(Y, rad);
+  const mineFlushNormal = mineFlushEdge.normal.clone().applyAxisAngle(Y, rad);
+  if (Math.abs(mineFlushNormal.x) > Math.abs(mineFlushNormal.z)) {
+    x = prevFlushEdge.worldPos.x - mineFlushLocal.x;
+  } else {
+    z = prevFlushEdge.worldPos.z - mineFlushLocal.z;
+  }
+  return { x, z };
+}
+
+// A module's true world-space footprint (rotation-aware AABB), built from
+// the same real per-type width/depth as everything else. Distinct from
+// worldEdge's single-point-per-side model: a face here is a full segment
+// with real extent, not just its midpoint.
+function instanceWorldAABB(inst) {
+  const { hw, hd } = halfExtents(inst.type);
+  const rad = THREE.MathUtils.degToRad(inst.rotationY);
+  const Y = new THREE.Vector3(0, 1, 0);
+  const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, lz]) => {
+    const v = new THREE.Vector3(lx, 0, lz).applyAxisAngle(Y, rad);
+    return { x: inst.x + v.x, z: inst.z + v.z };
+  });
+  return {
+    minX: Math.min(...corners.map((c) => c.x)), maxX: Math.max(...corners.map((c) => c.x)),
+    minZ: Math.min(...corners.map((c) => c.z)), maxZ: Math.max(...corners.map((c) => c.z)),
+  };
+}
+
+// Coplanarity tolerance for corner joins, in meters. Position for a corner
+// step is computed exactly (see resolveCornerPosition), so a real touch
+// lands here to within floating-point error — this is a sanity margin, not
+// a fudge factor.
+const TOUCH_EPSILON = 0.001;
+
+// findBestSnap validates a connection by checking whether two edge
+// MIDPOINTS are close together (dist < SNAP_DIST). That's the right test
+// when both modules share the same perpendicular width — their edge
+// midpoints necessarily coincide when the faces are flush. But it's the
+// WRONG test for this L-corner: the corner single's face is 0.939m wide
+// and the row single's face it's joining is 0.553m wide, so a genuinely
+// flush, fully-overlapping join still leaves the two edge midpoints
+// 0.193m apart — outside SNAP_DIST (0.16m). findBestSnap would reject a
+// physically correct connection here, not because it isn't touching, but
+// because its own point-based test can't see mismatched-width overlap.
+//
+// This checks what actually matters for "are these two faces touching":
+// are they coplanar (same position along the shared normal, within
+// TOUCH_EPSILON) AND does their real extent overlap at all (using each
+// module's true rotated footprint, not just its edge midpoint)? If both
+// hold, it's a genuine touch and the connection is recorded via the same
+// establishConnection() used everywhere else in the engine.
+function establishCornerConnection(inst, corner, prev) {
+  const mineEdge = worldEdge(inst, corner.touch.mine);
+  const prevEdge = worldEdge(prev, corner.touch.prev);
+  const facingOk = mineEdge.normal.dot(prevEdge.normal) < SNAP_NORMAL_DOT;
+  const alongX = Math.abs(mineEdge.normal.x) > Math.abs(mineEdge.normal.z);
+  const coplanarGap = alongX
+    ? Math.abs(mineEdge.worldPos.x - prevEdge.worldPos.x)
+    : Math.abs(mineEdge.worldPos.z - prevEdge.worldPos.z);
+  const mineBox = instanceWorldAABB(inst);
+  const prevBox = instanceWorldAABB(prev);
+  const overlaps = alongX
+    ? Math.min(mineBox.maxZ, prevBox.maxZ) - Math.max(mineBox.minZ, prevBox.minZ) > 0
+    : Math.min(mineBox.maxX, prevBox.maxX) - Math.max(mineBox.minX, prevBox.minX) > 0;
+  if (facingOk && coplanarGap < TOUCH_EPSILON && overlaps) {
+    establishConnection(inst, corner.touch.mine, prev, corner.touch.prev);
+    return true;
+  }
+  return false;
+}
+
 function placeChain(sequence) {
   clearLayout();
   let prev = null;
-  sequence.forEach(({ type, rotationY = 0, via, nudge }) => {
+  // Tracked at the moment each step resolves, not just inferred afterward
+  // from connections[] — a LATER step's successful snap can retroactively
+  // populate an earlier module's connections object (e.g. the closing
+  // Armrest connecting TO the corner module fills in the corner's own
+  // `right` slot), which would silently mask an earlier step's snap
+  // failure if validation only looked at final connection state.
+  const failedSteps = [];
+  sequence.forEach(({ type, rotationY = 0, via, corner }) => {
     let x = 0, z = 0;
     if (prev) {
       // Naively creating every new module at (0,0) would place it much
       // farther from the previous one than SNAP_DIST, so findBestSnap would
-      // never trigger. Instead, estimate a starting position by placing one
-      // of this module's own edges (at its target rotation) exactly on one
-      // of the previous module's edges — already touching, so the snap
-      // check below only has to confirm/fine-tune, not bridge a big gap.
-      //
-      // Which edge pair to use isn't always "my left touches their right":
-      // that's only true for a straight run. At a corner, a module rotated
-      // 90°/270° has BOTH its left and right edges swung to face front/back
-      // in world space, so the next module in the row has to connect via
-      // ITS front or back edge instead. Each preset step can specify the
-      // pair explicitly via `via: { mine, prev }`; it defaults to the
-      // straight-run case (left<-right) when omitted.
-      const mine = via?.mine ?? 'left';
-      const prevSide = via?.prev ?? 'right';
-      const prevEdge = worldEdge(prev, prevSide);
-      const rad = THREE.MathUtils.degToRad(rotationY);
-      const localMine = localEdges(type)[mine].local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rad);
-      x = prevEdge.worldPos.x - localMine.x;
-      z = prevEdge.worldPos.z - localMine.z;
+      // never trigger. Instead, estimate a starting position already
+      // touching the previous module, so the snap check below only has to
+      // confirm/fine-tune, not bridge a big gap.
+      if (corner) {
+        ({ x, z } = resolveCornerPosition(type, rotationY, corner, prev));
+      } else {
+        const mine = via?.mine ?? 'left';
+        const prevSide = via?.prev ?? 'right';
+        ({ x, z } = resolveTouchPosition(type, rotationY, mine, prevSide, prev));
+      }
     }
     const inst = createInstance(type, x, z, rotationY);
     if (prev) {
-      const snap = findBestSnap(inst);
-      if (snap) {
-        inst.x = snap.x; inst.z = snap.z; inst.object3D.position.set(inst.x, 0, inst.z);
-        establishConnection(inst, snap.dSide, snap.other, snap.oSide);
+      if (corner) {
+        // findBestSnap's point-distance test can't validate this join —
+        // see establishCornerConnection's comment for the exact numbers.
+        // Position was already resolved exactly (resolveCornerPosition);
+        // this checks it's a genuine touching connection (coplanar + real
+        // extent overlap) and records it via the same establishConnection
+        // used everywhere else — never assigning connection state on
+        // faith.
+        const ok = establishCornerConnection(inst, corner, prev);
+        if (!ok) {
+          console.error(`[preset] ${type} corner join to previous ${prev.type} failed coplanarity/overlap check — layout would ship broken`);
+          failedSteps.push(inst);
+        }
       } else {
-        console.warn(`[preset] ${type} did not snap to previous ${prev.type} — check rotation combo`);
+        // This is the SAME findBestSnap() function used by manual
+        // drag-and-drop (Task 1) to decide what a dropped module connects
+        // to — the estimate above just gets the module close enough
+        // (within SNAP_DIST) for it to trigger, exactly like dragging a
+        // module near another one by hand. The preset never assigns
+        // connection state directly; it only comes from this call
+        // succeeding.
+        const snap = findBestSnap(inst);
+        if (snap) {
+          inst.x = snap.x; inst.z = snap.z; inst.object3D.position.set(inst.x, 0, inst.z);
+          establishConnection(inst, snap.dSide, snap.other, snap.oSide);
+        } else {
+          console.error(`[preset] ${type} did NOT register a snap connection to previous ${prev.type} — layout would ship broken, check rotation/via combo`);
+          failedSteps.push(inst);
+        }
       }
-    }
-    // Optional authored nudge: slides this module along the seam it just
-    // connected on (parallel to the touching plane, never through it), for
-    // corner pieces whose perpendicular dimension is much larger than the
-    // module it's snapping onto — plain edge-center-to-edge-center snapping
-    // centers the corner piece on the smaller module and leaves it
-    // overhanging equally on both sides. Nudging shifts the corner flush
-    // with one side instead, matching the client's reference layout. This
-    // only offsets position; the logical connection recorded above (still
-    // touching along the perpendicular axis) is untouched.
-    if (nudge) {
-      inst.x += nudge.dx || 0;
-      inst.z += nudge.dz || 0;
-      inst.object3D.position.set(inst.x, 0, inst.z);
     }
     prev = inst;
   });
@@ -772,6 +886,25 @@ function placeChain(sequence) {
   // a single piece the user is now editing, so nothing should stay selected
   // when it's done.
   selectInstance(null);
+
+  // Validation: every module placed after the first one MUST have resolved
+  // via a successful findBestSnap() call above (failedSteps) AND must
+  // still show a live connection now (disconnected) — the second check
+  // catches anything that never got backfilled by a later step. If either
+  // list is non-empty, the build is broken and should not silently pass as
+  // a finished layout.
+  if (instances.length > 1) {
+    const disconnected = instances.filter((inst) => SNAP_SIDES.every((s) => inst.connections[s] == null));
+    if (failedSteps.length > 0 || disconnected.length > 0) {
+      console.error(
+        `[preset] BUILD FAILED — ${failedSteps.length} module(s) never snapped at placement time, ` +
+        `${disconnected.length} module(s) show no connection now. This layout should not ship as-is.`
+      );
+    } else {
+      console.log(`[preset] build OK — all ${instances.length} modules confirmed snapped.`);
+    }
+  }
+
   refreshAll();
   // Frame the camera on the finished layout.
   const box = new THREE.Box3();
@@ -803,21 +936,34 @@ const PRESETS = {
     { type: 'single', rotationY: 0 },
     { type: 'single', rotationY: 0 },
     // Corner turn: the 3rd single stays at rotationY=0 (end of the
-    // straight run); the 4th single rotates 90 and connects via its own
-    // left edge to the 3rd single's back edge (a 90-rotated module's
-    // left/right edges swing to face front/back in world space).
+    // straight run); the 4th single rotates 90 and turns the corner.
     //
-    // The corner single's own width becomes its X-extent once rotated 90,
-    // and that width (0.939, its unrotated depth) is much larger than the
-    // 3rd single's width (0.553) that it's centering on — plain edge
-    // snapping puts the corner piece's center on the row's center line,
-    // so it overhangs ~0.19m past the row on BOTH sides. That reads as a
-    // piece randomly sticking out (flagged from the client screenshot).
-    // Nudge it flush with the row's near edge instead, nesting it into a
-    // clean corner the way the reference image shows. Verified offline via
-    // a rotated-AABB check (no overlaps) and a top-down plot compared
-    // against the reference before shipping.
-    { type: 'single', rotationY: 90, via: { mine: 'left', prev: 'back' }, nudge: { dx: -0.1925, dz: 0 } },
+    // This is a `corner` step, not a plain `via` step: a single edge-center
+    // match only fixes ONE positional axis, which is fine when both pieces
+    // share the same perpendicular width (a straight run) but not here —
+    // the corner single's width becomes its X-extent once rotated 90, and
+    // that width (0.939, its unrotated depth) is much larger than the 3rd
+    // single's width (0.553) it's turning off of. A plain via touch
+    // (mine:'left', prev:'back') only fixes the Z (touching) axis and
+    // leaves X wherever the edge-center happens to land — centered on the
+    // row, overhanging ~0.19m past it on BOTH sides (the piece the client
+    // screenshot flagged as sticking out).
+    //
+    // touch fixes Z the same way (left<-back, no gap on the seam); flush
+    // additionally fixes X by making the corner's own FRONT edge coplanar
+    // with the row's right edge. Note: at rotationY=90, left/right swing to
+    // face front/back (Z-direction offsets) while front/back swing to face
+    // left/right (X-direction offsets) — that's why the X-flush pair has
+    // to be 'front', not 'right' (verified below; using 'right' here was
+    // tried first and failed findBestSnap entirely, caught by the new
+    // validation check rather than shipping silently broken). Both edges
+    // are real worldEdge() lookups, not an authored offset. Position +
+    // connection both come from findBestSnap() in placeChain, same as
+    // manual drag-and-drop.
+    {
+      type: 'single', rotationY: 90,
+      corner: { touch: { mine: 'left', prev: 'back' }, flush: { mine: 'front', prev: 'right' } },
+    },
     { type: 'armrest', rotationY: 90 },
   ],
   // Matches the client's reference screenshot exactly: two reclined Single
