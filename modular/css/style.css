@@ -167,10 +167,12 @@ body {
 
 .bom-list { display: flex; flex-direction: column; gap: 8px; }
 .bom-empty { font-size: 12px; color: var(--ink-soft); font-style: italic; }
-.bom-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.bom-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12.5px; padding: 3px 0; }
+.bom-row .bom-info { display: flex; flex-direction: column; }
 .bom-row .bom-name { font-weight: 600; }
 .bom-row .bom-qty { color: var(--ink-soft); font-weight: 400; margin-left: 4px; }
-.bom-row .bom-price { color: var(--ink-soft); }
+.bom-row .bom-unit { color: var(--ink-soft); font-size: 11px; margin-top: 1px; }
+.bom-row .bom-price { color: var(--ink); font-weight: 600; }
 
 .price-block { border-bottom: none; margin-top: auto; padding-bottom: 20px; position: sticky; bottom: 0; background: #fff; }
 .price-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }

@@ -668,7 +668,7 @@ function updateBOM() {
     const unit = Math.round(def.price * (currentFamily === 'leather' ? LEATHER_PREMIUM : 1));
     const row = document.createElement('div');
     row.className = 'bom-row';
-    row.innerHTML = `<span><span class="bom-name">${def.name}</span><span class="bom-qty">&times;${counts[type]}</span></span><span class="bom-price">${formatINR(unit * counts[type])}</span>`;
+    row.innerHTML = `<span class="bom-info"><span><span class="bom-name">${def.name}</span><span class="bom-qty">&times;${counts[type]}</span></span><span class="bom-unit">${formatINR(unit)} each</span></span><span class="bom-price">${formatINR(unit * counts[type])}</span>`;
     bomList.appendChild(row);
   });
 }
