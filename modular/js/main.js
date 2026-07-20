@@ -712,7 +712,7 @@ function clearLayout() {
 function placeChain(sequence) {
   clearLayout();
   let prev = null;
-  sequence.forEach(({ type, rotationY = 0, via }) => {
+  sequence.forEach(({ type, rotationY = 0, via, nudge }) => {
     let x = 0, z = 0;
     if (prev) {
       // Naively creating every new module at (0,0) would place it much
@@ -746,6 +746,20 @@ function placeChain(sequence) {
       } else {
         console.warn(`[preset] ${type} did not snap to previous ${prev.type} — check rotation combo`);
       }
+    }
+    // Optional authored nudge: slides this module along the seam it just
+    // connected on (parallel to the touching plane, never through it), for
+    // corner pieces whose perpendicular dimension is much larger than the
+    // module it's snapping onto — plain edge-center-to-edge-center snapping
+    // centers the corner piece on the smaller module and leaves it
+    // overhanging equally on both sides. Nudging shifts the corner flush
+    // with one side instead, matching the client's reference layout. This
+    // only offsets position; the logical connection recorded above (still
+    // touching along the perpendicular axis) is untouched.
+    if (nudge) {
+      inst.x += nudge.dx || 0;
+      inst.z += nudge.dz || 0;
+      inst.object3D.position.set(inst.x, 0, inst.z);
     }
     prev = inst;
   });
@@ -792,7 +806,18 @@ const PRESETS = {
     // straight run); the 4th single rotates 90 and connects via its own
     // left edge to the 3rd single's back edge (a 90-rotated module's
     // left/right edges swing to face front/back in world space).
-    { type: 'single', rotationY: 90, via: { mine: 'left', prev: 'back' } },
+    //
+    // The corner single's own width becomes its X-extent once rotated 90,
+    // and that width (0.939, its unrotated depth) is much larger than the
+    // 3rd single's width (0.553) that it's centering on — plain edge
+    // snapping puts the corner piece's center on the row's center line,
+    // so it overhangs ~0.19m past the row on BOTH sides. That reads as a
+    // piece randomly sticking out (flagged from the client screenshot).
+    // Nudge it flush with the row's near edge instead, nesting it into a
+    // clean corner the way the reference image shows. Verified offline via
+    // a rotated-AABB check (no overlaps) and a top-down plot compared
+    // against the reference before shipping.
+    { type: 'single', rotationY: 90, via: { mine: 'left', prev: 'back' }, nudge: { dx: -0.1925, dz: 0 } },
     { type: 'armrest', rotationY: 90 },
   ],
   // Matches the client's reference screenshot exactly: two reclined Single
