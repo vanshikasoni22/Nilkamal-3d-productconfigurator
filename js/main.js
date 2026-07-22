@@ -267,13 +267,20 @@ function updateDimensionOverlay() {
 
 // No automatic/forced rotation — the model only turns when the user drags.
 // OrbitControls (below) handles all rotation/zoom input directly.
+//
+// Uses renderer.setAnimationLoop instead of a manual requestAnimationFrame
+// loop. This is required so js/ar.js (the "View in Your Room" WebXR flow)
+// can hand the render loop to the active XRSession while AR is running,
+// and hand it back to this same function afterwards. With no XR session
+// active (the normal desktop case) setAnimationLoop calls this function on
+// every requestAnimationFrame tick exactly as before — same callback, same
+// ~60fps cadence, nothing else about desktop rendering changes.
 function animate() {
-  requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
   updateDimensionOverlay();
 }
-animate();
+renderer.setAnimationLoop(animate);
 
 // ============================================================================
 // Loaders + cache
@@ -1113,3 +1120,9 @@ document.getElementById('addToCart').addEventListener('click', () => {
 // ============================================================================
 buildNavTabs();
 refreshAll();
+
+// Exported so js/ar.js (Android WebXR "View in Your Room" flow, ar-floor-
+// detection branch) can reuse the live scene/camera/renderer/product state
+// instead of recreating it. Purely additive — does not change any desktop
+// rendering or configurator behavior.
+export { scene, camera, renderer, controls, productRoot, moduleRoot, animate, getCurrentCmDims };

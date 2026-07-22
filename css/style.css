@@ -202,6 +202,79 @@ body {
 .viewer-fab:hover { border-color: var(--brand); color: var(--brand); }
 .viewer-fab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 
+/* ---------- "View in Your Room" AR entry point (Android/Chrome WebXR) ---------- */
+.ar-fab {
+  position: absolute;
+  bottom: 20px;
+  right: 70px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 19px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.92);
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  transition: border-color .15s, color .15s;
+}
+.ar-fab:hover { border-color: var(--brand); color: var(--brand); }
+.ar-fab.hidden { display: none; }
+
+/* WebXR dom-overlay root. The browser takes over sizing/positioning of this
+   element for the duration of an active AR session; outside a session it is
+   just an absolutely-positioned layer over the viewer, hidden until active. */
+.ar-overlay {
+  position: absolute; inset: 0;
+  display: none;
+  pointer-events: none;
+  z-index: 5;
+}
+.ar-overlay.active { display: block; }
+.ar-overlay.active .ar-exit,
+.ar-overlay.active .ar-banner { pointer-events: auto; }
+
+.ar-exit {
+  position: absolute; top: 16px; right: 16px;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20,20,20,.55);
+  color: #fff;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+
+.ar-banner {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  max-width: 82%;
+  background: rgba(20,20,20,.72);
+  color: #fff;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  display: flex; align-items: center; gap: 8px;
+}
+.ar-banner-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--brand);
+  flex: 0 0 auto;
+  animation: spin 1.4s linear infinite;
+}
+
+.ar-hint {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,20,.72);
+  color: #fff;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  display: none;
+  white-space: nowrap;
+}
+
 .viewer-topleft {
   position: absolute; top: 18px; left: 22px;
   font-size: 11px; color: var(--ink-soft);
