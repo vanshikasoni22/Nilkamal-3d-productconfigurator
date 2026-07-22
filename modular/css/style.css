@@ -226,3 +226,54 @@ body {
   pointer-events: none;
   display: none;
 }
+
+/* ---------- Mobile (phones, ~375-430px portrait) ----------
+   This builder had no phone breakpoint at all: .app is a 3-column CSS grid
+   (240px palette + flexible viewer + 300px side panel) — on a 375px screen
+   the two fixed columns alone need 540px, well over the whole viewport
+   width, so the 3D viewer column was forced negative/near-zero and the
+   layout just broke. This stacks the three sections instead (viewer first,
+   since seeing the product matters more on a small screen than the palette
+   or BOM), gives the viewer a fixed height so the canvas still renders
+   sensibly, and lets the page scroll normally through palette/material/BOM
+   below it rather than trying to cram three independent scroll regions into
+   one screen. Also bumps a few small tap targets (swatches, family toggle,
+   preset buttons) toward a real touch size. Nothing above 760px is changed,
+   so desktop/tablet layout and the drag-and-drop snap-engine are untouched. */
+@media (max-width: 760px) {
+  html, body { height: auto; }
+  body { overflow-y: auto; }
+  .app { display: flex; flex-direction: column; flex: 1 1 auto; }
+
+  .viewer-col { order: 1; width: 100%; height: 56vh; min-height: 300px; flex-shrink: 0; }
+  .palette {
+    order: 2; width: 100%; max-height: none; overflow-y: visible;
+    border-right: none; border-bottom: 1px solid var(--line);
+  }
+  .side-panel {
+    order: 3; width: 100%; overflow-y: visible;
+    border-left: none; border-top: 1px solid var(--line);
+  }
+  .price-block { position: static; }
+
+  .footprint-badge { top: 12px; left: 12px; font-size: 11.5px; padding: 6px 11px; }
+  /* Long hint text ("Drag empty space to rotate view · Scroll to zoom ·
+     Drag a module to move it") was pinned at left:24px with no width limit
+     — on a narrow viewer-col it could run past the right edge. Stretching
+     it edge-to-edge and centering keeps it fully on-screen and readable
+     instead of overflowing. */
+  .viewer-hint { left: 12px; right: 12px; bottom: 12px; text-align: center; font-size: 10.5px; }
+
+  .topbar { padding: 10px 14px; }
+  .brand-tag { display: none; }
+
+  .family-btn { padding: 11px 0; }
+  .swatch { width: 40px; height: 40px; }
+  .preset-btn { padding: 11px 10px; }
+  .clear-btn, .add-cart-btn { padding: 13px; }
+  .module-card { min-height: 44px; }
+}
+
+@media (max-width: 400px) {
+  .viewer-col { height: 50vh; min-height: 260px; }
+}
