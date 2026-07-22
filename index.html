@@ -101,6 +101,20 @@
       <span>View in Your Room</span>
     </button>
 
+    <!-- Shown instead of the generic "AR isn't supported" toast specifically
+         when js/ar-router.js detects an in-app browser (Instagram, Facebook,
+         WhatsApp, etc.) — those WebViews block camera/AR APIs even on a
+         device/browser combo that would otherwise fully support AR, so the
+         generic message is actively misleading there. -->
+    <div class="inapp-panel hidden" id="inAppPanel">
+      <button class="inapp-panel-close" id="inAppPanelClose" aria-label="Close">&#10005;</button>
+      <p class="inapp-panel-text" id="inAppPanelText"></p>
+      <div class="inapp-panel-actions">
+        <button class="inapp-panel-btn" id="inAppOpenBrowserBtn">Open in Browser</button>
+        <button class="inapp-panel-btn inapp-panel-btn-secondary" id="inAppCopyLinkBtn">Copy Link</button>
+      </div>
+    </div>
+
     <!-- WebXR "dom-overlay" root: hidden until an AR session is active, then
          used for the scanning prompt / placement hint / exit control. Android
          + Chrome only (see js/ar.js); no effect on desktop rendering. -->
