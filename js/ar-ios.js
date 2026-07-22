@@ -90,16 +90,16 @@ iosLink.addEventListener('click', (e) => {
   // load-failed screen — no page-side handling needed or possible for that.
 });
 
-function init() {
-  if (supportsQuickLook()) {
-    androidBtn.classList.add('hidden');
-    iosLink.classList.remove('hidden');
-    refreshIosLink();
-  } else {
-    iosLink.classList.add('hidden');
-    // androidBtn (js/ar.js) stays visible and handles its own unsupported-
-    // device messaging on click — untouched by this file.
-  }
+// Activation entry point for js/ar-router.js — the router does the actual
+// WebXR-first / Quick-Look-second / unsupported-fallback ordering and calls
+// this only once it's decided Quick Look is the right path for this device.
+// (No self-running init() here anymore: a single shared router owns which
+// of the three "View in Your Room" buttons is visible, so detection only
+// happens in one place instead of each flow deciding independently.)
+export function activateQuickLook() {
+  androidBtn.classList.add('hidden');
+  iosLink.classList.remove('hidden');
+  refreshIosLink();
 }
 
-init();
+export { supportsQuickLook };
