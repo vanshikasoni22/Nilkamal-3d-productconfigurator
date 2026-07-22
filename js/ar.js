@@ -113,28 +113,33 @@ function buildArRoot() {
 }
 
 async function startAR() {
+  console.info('[ar] "View in Your Room" tapped (Android/WebXR path)');
+
   if (!navigator.xr) {
+    console.warn('[ar] navigator.xr is undefined in this browser — cannot start a WebXR session');
     showToast('AR isn’t supported in this browser. Try Chrome on an Android phone.');
     return;
   }
-  let supported = false;
-  try {
-    supported = await navigator.xr.isSessionSupported('immersive-ar');
-  } catch {
-    supported = false;
-  }
-  if (!supported) {
-    showToast('AR isn’t supported on this device. WebXR AR needs Chrome on an ARCore-capable Android phone.');
-    return;
-  }
 
+  // No isSessionSupported() re-check here — js/ar-router.js already awaited
+  // that once at page load and only reveals/enables this button when it
+  // came back true, so re-checking on every click would just insert an
+  // unnecessary await between the user's tap and requestSession(). WebXR
+  // requires requestSession to be called within the same synchronous
+  // continuation as the triggering user gesture; any extra await ahead of
+  // it risks the browser no longer treating the call as gesture-initiated
+  // and silently withholding the camera permission prompt. requestSession
+  // below is the first (and only necessary) async call in this handler.
+  console.info('[ar] calling navigator.xr.requestSession("immersive-ar", { hit-test, dom-overlay })');
   try {
     session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['dom-overlay'],
       domOverlay: { root: arOverlay },
     });
+    console.info('[ar] requestSession() resolved — camera permission granted, XRSession started');
   } catch (err) {
+    console.error('[ar] requestSession() rejected — no camera prompt shown, or user denied it:', err);
     showToast('Could not start AR' + (err && err.message ? ': ' + err.message : '.'));
     return;
   }
@@ -160,13 +165,22 @@ async function startAR() {
   setBanner('Move your phone slowly to find a floor…');
   setHint('', 0);
 
-  renderer.xr.setReferenceSpaceType('local');
-  await renderer.xr.setSession(session);
+  try {
+    renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+    console.info('[ar] renderer.xr.setSession() done — three.js is now rendering into the AR session');
 
-  const viewerSpace = await session.requestReferenceSpace('viewer');
-  hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-  localRefSpace = renderer.xr.getReferenceSpace();
-  scanStartedAt = performance.now();
+    const viewerSpace = await session.requestReferenceSpace('viewer');
+    hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+    localRefSpace = renderer.xr.getReferenceSpace();
+    scanStartedAt = performance.now();
+    console.info('[ar] hit-test source acquired — scanning for a floor plane');
+  } catch (err) {
+    console.error('[ar] setup after session start failed (reference space / hit-test source):', err);
+    showToast('AR started but could not set up floor detection' + (err && err.message ? ': ' + err.message : '.'));
+    session.end();
+    return;
+  }
 
   session.addEventListener('end', onSessionEnd);
   session.addEventListener('select', onSelect);
@@ -206,7 +220,11 @@ function arFrame(time, frame) {
 }
 
 function onSelect() {
-  if (placed || !reticle || !reticle.visible) return;
+  if (placed || !reticle || !reticle.visible) {
+    console.info('[ar] select event ignored (already placed, or no floor detected yet)');
+    return;
+  }
+  console.info('[ar] select event — placing layout at reticle pose');
   // Reticle's matrix already holds the hit-test pose (position + rotation);
   // decompose it onto arRoot directly. Scale is thrown away here on purpose
   // so arRoot keeps the real-world scaleFactor computed in buildArRoot().
@@ -219,6 +237,7 @@ function onSelect() {
 }
 
 function onSessionEnd() {
+  console.info('[ar] XRSession ended — restoring desktop view');
   renderer.setAnimationLoop(animate);
   arOverlay.removeEventListener('touchstart', onTouchStart);
   arOverlay.removeEventListener('touchmove', onTouchMove);

@@ -195,16 +195,22 @@ async function route() {
   // All buttons/panels start hidden (see index.html) so there is never a
   // flash of the "wrong" one before detection resolves.
   const webXrOk = await detectWebXR();
+  console.info('[ar-router] WebXR immersive-ar supported:', webXrOk);
   if (webXrOk) {
     arButton.classList.remove('hidden');
+    console.info('[ar-router] -> showing Android/WebXR button (js/ar.js handles clicks)');
     return;
   }
 
-  if (supportsQuickLook()) {
+  const quickLookOk = supportsQuickLook();
+  console.info('[ar-router] Quick Look (rel=ar) supported:', quickLookOk);
+  if (quickLookOk) {
     activateQuickLook();
+    console.info('[ar-router] -> showing iOS/Quick Look button (js/ar-ios.js handles clicks)');
     return;
   }
 
+  console.info('[ar-router] -> neither supported, showing fallback button');
   activateUnsupported();
 }
 

@@ -101,9 +101,16 @@ function refreshIosLink() {
   return { ok: true, hasAddOns };
 }
 
+// IMPORTANT: this listener never calls preventDefault() or stopPropagation()
+// on the success path — doing so would block Safari's native rel="ar"
+// handling entirely. It only ever calls preventDefault() in the one case
+// where there is no file to point at all (see !ok below), so the click
+// legitimately has nothing valid to hand off to Quick Look.
 iosLink.addEventListener('click', (e) => {
+  console.info('[ar-ios] "View in Your Room" tapped (iOS/Quick Look path), href =', iosLink.href);
   const { ok, hasAddOns } = refreshIosLink();
   if (!ok) {
+    console.warn('[ar-ios] no usable .usdz URL for the current product — blocking navigation (nothing to hand off to Quick Look)');
     e.preventDefault();
     showToast('AR isn’t available for this product yet — it’s built procedurally and has no exportable 3D file.');
     return;
@@ -113,9 +120,13 @@ iosLink.addEventListener('click', (e) => {
     // exists) and show the sofa at correct scale — just without the add-on.
     showToast('AR preview shows the sofa only for now — the side table/ottoman add-on isn’t available in iOS AR yet.');
   }
+  console.info('[ar-ios] handing off to native rel="ar" navigation, final href =', iosLink.href);
   // Let the native rel="ar" navigation proceed from here into Quick Look.
-  // If the .usdz is missing (see KNOWN GAP above), Quick Look shows its own
-  // load-failed screen — no page-side handling needed or possible for that.
+  // If Safari's own "View in AR?" dialog appears but nothing happens after
+  // tapping "View in AR" in it, that means Safari recognized the link fine
+  // (this code is not the problem) and the .usdz itself failed to load —
+  // see the KNOWN GAP note above. Quick Look shows its own load-failed UI
+  // for that; there's no page-side hook to catch or log that failure from.
 });
 
 // Activation entry point for js/ar-router.js — the router does the actual
