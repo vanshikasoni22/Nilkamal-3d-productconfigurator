@@ -59,7 +59,35 @@ function supportsQuickLook() {
   return !!(a.relList && a.relList.supports && a.relList.supports('ar'));
 }
 
+// Diagnostic-only escape hatch for isolating "is it our .usdz file/pipeline,
+// or our page/server setup" — append ?ar-debug=1 to the URL and the AR link
+// points at one of Apple's own public Quick Look gallery sample files
+// instead of our (currently nonexistent, see KNOWN GAP above) product
+// USDZ. Confirmed live and current directly against Apple's own gallery
+// page (developer.apple.com/augmented-reality/quick-look/) — this exact
+// URL is one of the models Apple lists there. If AR opens correctly with
+// this sample but not with our own link, the bug is in our file/pipeline;
+// if it ALSO fails to open with this sample, the bug is in our page/server
+// setup (markup, MIME headers, hosting), not the file. Off by default —
+// never affects the normal shopper-facing experience.
+const AR_DEBUG_SAMPLE_USDZ = 'https://developer.apple.com/augmented-reality/quick-look/models/toycar/toy_car.usdz';
+function isArDebugMode() {
+  try {
+    return new URLSearchParams(window.location.search).get('ar-debug') === '1';
+  } catch {
+    return false;
+  }
+}
+
 function refreshIosLink() {
+  if (isArDebugMode()) {
+    iosLink.dataset.disabled = '';
+    iosLink.href = AR_DEBUG_SAMPLE_USDZ;
+    iosLink.title = 'AR DEBUG MODE — Apple sample model, not the real product';
+    console.info('[ar-ios debug] ?ar-debug=1 active — AR link points at Apple\'s public sample USDZ, not this product\'s own file. Remove ?ar-debug=1 to restore the normal link.');
+    return { ok: true, hasAddOns: false };
+  }
+
   const { glbUrl, hasAddOns, thumbnail } = getArAssetInfo();
   if (!glbUrl) {
     // Accent category: procedural, no source mesh exists in any format yet.
