@@ -221,6 +221,8 @@ body {
 }
 .ar-fab:hover { border-color: var(--brand); color: var(--brand); }
 .ar-fab.hidden { display: none; }
+a.ar-fab { text-decoration: none; }
+.ar-fab img { width: 16px; height: 16px; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }
 
 /* WebXR dom-overlay root. The browser takes over sizing/positioning of this
    element for the duration of an active AR session; outside a session it is

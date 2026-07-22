@@ -662,6 +662,39 @@ async function renderAccentScene(token) {
   hideLoading();
 }
 
+// ============================================================================
+// iOS AR Quick Look support (js/ar-ios.js) — read-only info about the
+// currently configured PRIMARY product's source .glb, used to derive the
+// matching .usdz file (same base filename, same assets/<category>/ folder —
+// see js/ar-ios.js for the exact convention). Accent is procedural (no
+// source mesh file exists at all, see renderAccentScene/buildAccentTable
+// above) so glbUrl is null there. The sofa's side table / ottoman add-ons
+// are also procedural-only (buildAccentTable/buildOttoman, no exportable
+// file), so hasAddOns flags when the current config includes an add-on
+// that iOS AR Quick Look will not be able to show alongside the sofa.
+// ============================================================================
+function getArAssetInfo() {
+  const cat = state.category;
+  const s = state.perCategory[cat];
+  const cfg = CATALOG[cat];
+  let glbUrl = null;
+  if (cat === 'sofa') {
+    const layout = cfg.layouts.find((l) => l.id === s.layout);
+    glbUrl = assetUrl(cfg.assetDir, layout.files[s.variant]);
+  } else if (cat === 'bed') {
+    glbUrl = assetUrl(cfg.assetDir, cfg.files[s.variant]);
+  } else if (cat === 'wardrobe') {
+    const variant = cfg.variants.find((v) => v.id === s.variant);
+    glbUrl = assetUrl(cfg.assetDir, variant.file);
+  } else if (cat === 'dining') {
+    const variant = cfg.variants.find((v) => v.id === s.variant);
+    glbUrl = assetUrl(cfg.assetDir, variant.file);
+  }
+  const hasAddOns = cat === 'sofa' && !!(s.modules && (s.modules.sidetable || s.modules.ottoman));
+  const thumbnail = glbUrl ? (thumbCache.get(glbUrl) || null) : null;
+  return { glbUrl, hasAddOns, thumbnail };
+}
+
 const SCENE_RENDERERS = {
   sofa: renderSofaScene,
   bed: renderBedScene,
@@ -1125,4 +1158,4 @@ refreshAll();
 // detection branch) can reuse the live scene/camera/renderer/product state
 // instead of recreating it. Purely additive — does not change any desktop
 // rendering or configurator behavior.
-export { scene, camera, renderer, controls, productRoot, moduleRoot, animate, getCurrentCmDims };
+export { scene, camera, renderer, controls, productRoot, moduleRoot, animate, getCurrentCmDims, getArAssetInfo };

@@ -69,6 +69,17 @@
       <span>View in Your Room</span>
     </button>
 
+    <!-- iOS Safari path (js/ar-ios.js): AR Quick Look is launched via a real
+         rel="ar" anchor pointing at a .usdz file, not JS/WebXR. Quick Look
+         requires an <img> as the anchor's first child (Apple/WebKit
+         requirement) — img is repurposed as the visible button content here.
+         Hidden by default; js/ar-ios.js shows exactly one of this or
+         #arButton depending on feature detection, never both. -->
+    <a class="ar-fab hidden" id="arButtonIOS" rel="ar" href="#" title="View in your room (AR)">
+      <img id="arButtonIOSImg" alt="" width="16" height="16" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><path d='M12 2 3 7v10l9 5 9-5V7l-9-5Z' stroke='%23161616' stroke-width='1.6' stroke-linejoin='round'/><path d='M3 7l9 5 9-5M12 12v10' stroke='%23161616' stroke-width='1.6' stroke-linejoin='round'/></svg>" />
+      <span>View in Your Room</span>
+    </a>
+
     <!-- WebXR "dom-overlay" root: hidden until an AR session is active, then
          used for the scanning prompt / placement hint / exit control. Android
          + Chrome only (see js/ar.js); no effect on desktop rendering. -->
@@ -117,5 +128,6 @@
 
 <script type="module" src="./js/main.js"></script>
 <script type="module" src="./js/ar.js"></script>
+<script type="module" src="./js/ar-ios.js"></script>
 </body>
 </html>
