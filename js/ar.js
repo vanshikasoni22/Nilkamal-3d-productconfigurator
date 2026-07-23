@@ -154,30 +154,59 @@ async function startAR() {
   setBanner('Starting AR…');
   setHint('', 0);
 
-  async function tryRequestSession(withDomOverlay) {
-    const init = withDomOverlay
-      ? { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: arOverlay } }
-      : { requiredFeatures: ['hit-test'] };
-    console.info('[ar] calling navigator.xr.requestSession("immersive-ar", ...) — dom-overlay:', withDomOverlay, init);
-    return navigator.xr.requestSession('immersive-ar', init);
+  // isSessionSupported('immersive-ar') — which js/ar-router.js already
+  // checked before this button was ever shown — only confirms the SESSION
+  // MODE is supported. It says nothing about whether specific features
+  // like hit-test will be granted; that's only knowable by actually
+  // requesting them and seeing whether the browser accepts or rejects.
+  // There's no other API to probe this ahead of time, so this tries
+  // progressively less demanding configurations and adapts to whichever
+  // one the device actually grants, instead of asking for everything and
+  // giving up with one generic error if any part of it isn't available.
+  async function tryRequestSession(features) {
+    console.info('[ar] calling navigator.xr.requestSession("immersive-ar", ...):', features);
+    return navigator.xr.requestSession('immersive-ar', features);
   }
 
   try {
-    session = await tryRequestSession(true);
-    console.info('[ar] requestSession() resolved with dom-overlay — camera permission granted, XRSession started');
+    session = await tryRequestSession({
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay'],
+      domOverlay: { root: arOverlay },
+    });
+    console.info('[ar] resolved: hit-test + dom-overlay both granted — full experience');
   } catch (err1) {
-    console.warn('[ar] requestSession() with dom-overlay rejected, retrying without it:', err1);
+    console.warn('[ar] hit-test + dom-overlay rejected, retrying with hit-test only:', err1);
     try {
-      session = await tryRequestSession(false);
-      console.info('[ar] requestSession() resolved WITHOUT dom-overlay — camera permission granted, XRSession started (scanning banner/exit button UI will not be shown this session)');
+      session = await tryRequestSession({ requiredFeatures: ['hit-test'] });
+      console.info('[ar] resolved: hit-test granted, dom-overlay was the problem — floor detection works, custom banner/exit UI will not show this session');
       arOverlay.classList.remove('active');
     } catch (err2) {
-      console.error('[ar] requestSession() rejected on both attempts — hit-test itself is likely unsupported on this device/browser:', err2);
-      arOverlay.classList.remove('active');
-      productRoot.visible = true;
-      moduleRoot.visible = true;
-      controls.enabled = true;
-      showToast('Could not start AR' + (err2 && err2.message ? ': ' + err2.message : '.'));
+      console.warn('[ar] hit-test still rejected on its own — probing whether AR works at all without it:', err2);
+      try {
+        // Diagnostic only: our whole flow (reticle, tap-to-place) depends
+        // on hit-test to know where the floor is, so a session with no
+        // hit-test isn't something we can actually offer as the real
+        // feature. But requesting it tells us, for certain, whether this
+        // device/browser can run ANY AR session at all, so the message
+        // shown can be specific instead of generic — end it immediately
+        // either way.
+        const probeSession = await tryRequestSession({});
+        await probeSession.end();
+        console.error('[ar] bare immersive-ar session succeeded, but hit-test specifically does not — this device/browser can open the camera but cannot detect the floor, so placement cannot work here');
+        arOverlay.classList.remove('active');
+        productRoot.visible = true;
+        moduleRoot.visible = true;
+        controls.enabled = true;
+        showToast('This phone can open AR camera view, but floor detection (hit-test) isn’t available — try updating "Google Play Services for AR" from the Play Store, or a different Android phone.');
+      } catch (err3) {
+        console.error('[ar] bare immersive-ar also rejected — no AR support at all on this device/browser combination:', err3);
+        arOverlay.classList.remove('active');
+        productRoot.visible = true;
+        moduleRoot.visible = true;
+        controls.enabled = true;
+        showToast('AR isn’t supported on this device/browser at all' + (err3 && err3.message ? ': ' + err3.message : '.'));
+      }
       return;
     }
   }
