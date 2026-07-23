@@ -128,42 +128,67 @@ async function startAR() {
   // requires requestSession to be called within the same synchronous
   // continuation as the triggering user gesture; any extra await ahead of
   // it risks the browser no longer treating the call as gesture-initiated
-  // and silently withholding the camera permission prompt. requestSession
-  // below is the first (and only necessary) async call in this handler.
-  console.info('[ar] calling navigator.xr.requestSession("immersive-ar", { hit-test, dom-overlay })');
-  try {
-    session = await navigator.xr.requestSession('immersive-ar', {
-      requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay'],
-      domOverlay: { root: arOverlay },
-    });
-    console.info('[ar] requestSession() resolved — camera permission granted, XRSession started');
-  } catch (err) {
-    console.error('[ar] requestSession() rejected — no camera prompt shown, or user denied it:', err);
-    showToast('Could not start AR' + (err && err.message ? ': ' + err.message : '.'));
-    return;
-  }
+  // and silently withholding the camera permission prompt.
 
-  // Hide the desktop product while AR is active — otherwise it would keep
-  // sitting, at desktop (non-real-world) scale, at the world origin behind
-  // the camera passthrough. Restored on session end; desktop behavior when
-  // no AR session is running is completely unchanged.
+  // IMPORTANT (this is the actual fix for the "specified session
+  // configuration is not supported" error seen on a real Android device):
+  // the WebXR DOM Overlay spec requires the domOverlay.root element to be
+  // a real, displayable element AT THE MOMENT requestSession() is called —
+  // a hidden (display:none) root is treated as an invalid configuration
+  // and Chrome rejects the *entire* requestSession call over it, even
+  // though dom-overlay was only requested as an optional feature. arOverlay
+  // starts as display:none (see css/style.css .ar-overlay) and previously
+  // only became visible *after* requestSession had already resolved/
+  // rejected — so the overlay was still hidden at the exact instant it
+  // needed to be visible. Making it visible first, before the call, fixes
+  // that. UI state (hiding the desktop product, resetting placement state)
+  // is set up here too, before the request, for the same reason — none of
+  // it depends on the session actually existing yet.
   productRoot.visible = false;
   moduleRoot.visible = false;
   controls.enabled = false;
-
   placed = false;
   sawAnyHit = false;
   touchState.mode = null;
+  arOverlay.classList.add('active');
+  setBanner('Starting AR…');
+  setHint('', 0);
+
+  async function tryRequestSession(withDomOverlay) {
+    const init = withDomOverlay
+      ? { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: arOverlay } }
+      : { requiredFeatures: ['hit-test'] };
+    console.info('[ar] calling navigator.xr.requestSession("immersive-ar", ...) — dom-overlay:', withDomOverlay, init);
+    return navigator.xr.requestSession('immersive-ar', init);
+  }
+
+  try {
+    session = await tryRequestSession(true);
+    console.info('[ar] requestSession() resolved with dom-overlay — camera permission granted, XRSession started');
+  } catch (err1) {
+    console.warn('[ar] requestSession() with dom-overlay rejected, retrying without it:', err1);
+    try {
+      session = await tryRequestSession(false);
+      console.info('[ar] requestSession() resolved WITHOUT dom-overlay — camera permission granted, XRSession started (scanning banner/exit button UI will not be shown this session)');
+      arOverlay.classList.remove('active');
+    } catch (err2) {
+      console.error('[ar] requestSession() rejected on both attempts — hit-test itself is likely unsupported on this device/browser:', err2);
+      arOverlay.classList.remove('active');
+      productRoot.visible = true;
+      moduleRoot.visible = true;
+      controls.enabled = true;
+      showToast('Could not start AR' + (err2 && err2.message ? ': ' + err2.message : '.'));
+      return;
+    }
+  }
+
+  arButton.classList.add('hidden');
+  if (arOverlay.classList.contains('active')) setBanner('Move your phone slowly to find a floor…');
+
   arRoot = buildArRoot();
   scene.add(arRoot);
   reticle = buildReticle();
   scene.add(reticle);
-
-  arOverlay.classList.add('active');
-  arButton.classList.add('hidden');
-  setBanner('Move your phone slowly to find a floor…');
-  setHint('', 0);
 
   try {
     renderer.xr.setReferenceSpaceType('local');
