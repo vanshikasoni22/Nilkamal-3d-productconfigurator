@@ -115,6 +115,21 @@
       </div>
     </div>
 
+    <!-- Shown only when js/ar.js exhausts every fallback (full request, then
+         hit-test-only, then a completely bare AR request) and all three are
+         rejected by the device/browser itself. Surfaces the raw technical
+         facts (browser, exact error, WebXR API presence) directly on screen
+         so they can be read off a screenshot instead of needing developer
+         tools on the phone. -->
+    <div class="inapp-panel hidden" id="arDiagPanel">
+      <button class="inapp-panel-close" id="arDiagPanelClose" aria-label="Close">&#10005;</button>
+      <p class="inapp-panel-text">AR request was rejected by this device/browser at every level (see below). This is not something a page-side code change can work around — it needs comparing against the exact facts below.</p>
+      <p class="inapp-panel-text" id="arDiagPanelText" style="font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;"></p>
+      <div class="inapp-panel-actions">
+        <button class="inapp-panel-btn" id="arDiagCopyBtn">Copy Diagnostics</button>
+      </div>
+    </div>
+
     <!-- WebXR "dom-overlay" root: hidden until an AR session is active, then
          used for the scanning prompt / placement hint / exit control. Android
          + Chrome only (see js/ar.js); no effect on desktop rendering. -->

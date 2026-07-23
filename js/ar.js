@@ -54,6 +54,56 @@ function setHint(text, autoHideMs) {
   }
 }
 
+// On-screen diagnostics — shown only when every fallback in startAR() below
+// has been rejected by the device/browser itself. Puts the raw facts
+// (browser/device info, exact WebXR API results, exact error names) where
+// they can be read off a screenshot, instead of needing phone dev tools.
+const arDiagPanel = document.getElementById('arDiagPanel');
+const arDiagPanelText = document.getElementById('arDiagPanelText');
+const arDiagPanelClose = document.getElementById('arDiagPanelClose');
+const arDiagCopyBtn = document.getElementById('arDiagCopyBtn');
+
+async function showArDiagnostics(errors) {
+  let isSessionSupportedNow = 'navigator.xr missing';
+  if (navigator.xr && navigator.xr.isSessionSupported) {
+    try {
+      isSessionSupportedNow = String(await navigator.xr.isSessionSupported('immersive-ar'));
+    } catch (e) {
+      isSessionSupportedNow = 'threw: ' + (e && e.message);
+    }
+  }
+  const lines = [
+    'User agent: ' + navigator.userAgent,
+    'Secure context (https): ' + window.isSecureContext,
+    'navigator.xr present: ' + !!navigator.xr,
+    'isSessionSupported("immersive-ar") right now: ' + isSessionSupportedNow,
+    '',
+    'requestSession attempts (each rejected):',
+    '1) hit-test + dom-overlay: ' + describeErr(errors.full),
+    '2) hit-test only: ' + describeErr(errors.hitTestOnly),
+    '3) bare (no features): ' + describeErr(errors.bare),
+  ];
+  arDiagPanelText.textContent = lines.join('\n');
+  arDiagPanel.classList.remove('hidden');
+  console.info('[ar diagnostics]\n' + lines.join('\n'));
+}
+
+function describeErr(err) {
+  if (!err) return '(not attempted)';
+  return (err.name || 'Error') + ': ' + (err.message || String(err));
+}
+
+arDiagPanelClose.addEventListener('click', () => arDiagPanel.classList.add('hidden'));
+arDiagCopyBtn.addEventListener('click', async () => {
+  const text = arDiagPanelText.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Diagnostics copied.');
+  } catch {
+    showToast('Could not copy automatically — screenshot this panel instead.');
+  }
+});
+
 renderer.xr.enabled = true;
 
 let session = null;
@@ -168,6 +218,8 @@ async function startAR() {
     return navigator.xr.requestSession('immersive-ar', features);
   }
 
+  const errors = { full: null, hitTestOnly: null, bare: null };
+
   try {
     session = await tryRequestSession({
       requiredFeatures: ['hit-test'],
@@ -176,12 +228,14 @@ async function startAR() {
     });
     console.info('[ar] resolved: hit-test + dom-overlay both granted — full experience');
   } catch (err1) {
+    errors.full = err1;
     console.warn('[ar] hit-test + dom-overlay rejected, retrying with hit-test only:', err1);
     try {
       session = await tryRequestSession({ requiredFeatures: ['hit-test'] });
       console.info('[ar] resolved: hit-test granted, dom-overlay was the problem — floor detection works, custom banner/exit UI will not show this session');
       arOverlay.classList.remove('active');
     } catch (err2) {
+      errors.hitTestOnly = err2;
       console.warn('[ar] hit-test still rejected on its own — probing whether AR works at all without it:', err2);
       try {
         // Diagnostic only: our whole flow (reticle, tap-to-place) depends
@@ -200,12 +254,14 @@ async function startAR() {
         controls.enabled = true;
         showToast('This phone can open AR camera view, but floor detection (hit-test) isn’t available — try updating "Google Play Services for AR" from the Play Store, or a different Android phone.');
       } catch (err3) {
+        errors.bare = err3;
         console.error('[ar] bare immersive-ar also rejected — no AR support at all on this device/browser combination:', err3);
         arOverlay.classList.remove('active');
         productRoot.visible = true;
         moduleRoot.visible = true;
         controls.enabled = true;
-        showToast('AR isn’t supported on this device/browser at all' + (err3 && err3.message ? ': ' + err3.message : '.'));
+        showToast('AR isn’t supported on this device/browser at all — see the diagnostics panel below for the exact reason.');
+        await showArDiagnostics(errors);
       }
       return;
     }
