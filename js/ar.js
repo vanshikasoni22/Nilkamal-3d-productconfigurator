@@ -114,6 +114,7 @@ let arRoot = null;        // clone of productRoot + moduleRoot, rescaled to real
 let placed = false;
 let sawAnyHit = false;
 let scanStartedAt = 0;
+let savedSceneBackground = undefined; // scene.background, stashed while an AR session is active
 
 const touchState = { mode: null, lastAngle: 0 };
 const _dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -270,6 +271,18 @@ async function startAR() {
   arButton.classList.add('hidden');
   if (arOverlay.classList.contains('active')) setBanner('Move your phone slowly to find a floor…');
 
+  // CRITICAL: scene.background is the opaque studio-gradient texture used
+  // for the desktop product shot (see js/main.js). If it's left set during
+  // an AR session, three.js renders it as an opaque layer every frame,
+  // which — combined with the canvas now correctly having an alpha channel
+  // (see the renderer alpha:true fix in main.js) — would otherwise still
+  // fully hide the real camera passthrough behind a solid light-gray/white
+  // fill. This is exactly the "camera opens, banner/exit UI show, but the
+  // room and sofa never appear" symptom. Null it here, restore it in
+  // onSessionEnd() so desktop rendering is unaffected once AR ends.
+  savedSceneBackground = scene.background;
+  scene.background = null;
+
   arRoot = buildArRoot();
   scene.add(arRoot);
   reticle = buildReticle();
@@ -349,6 +362,10 @@ function onSelect() {
 function onSessionEnd() {
   console.info('[ar] XRSession ended — restoring desktop view');
   renderer.setAnimationLoop(animate);
+  if (savedSceneBackground !== undefined) {
+    scene.background = savedSceneBackground;
+    savedSceneBackground = undefined;
+  }
   arOverlay.removeEventListener('touchstart', onTouchStart);
   arOverlay.removeEventListener('touchmove', onTouchMove);
   arOverlay.removeEventListener('touchend', onTouchEnd);

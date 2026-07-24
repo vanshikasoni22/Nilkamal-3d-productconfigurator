@@ -9,7 +9,13 @@ import { CATALOG, CATEGORY_ORDER, SWATCHES, formatINR, emiEstimate } from './dat
 // Three.js scene setup
 // ============================================================================
 const canvas = document.getElementById('viewer-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
+// alpha: true is required for WebXR AR passthrough — without an alpha
+// channel on the canvas, the browser's XR compositor treats every pixel
+// we draw as fully opaque and can never blend the real camera feed behind
+// it, regardless of what (if anything) the scene draws. Desktop rendering
+// is unaffected: scene.background still paints the studio backdrop opaque
+// whenever we're not in an XR session.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
