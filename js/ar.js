@@ -129,7 +129,8 @@ let scanStartedAt = 0;
 let savedSceneBackground = undefined; // scene.background, stashed while an AR session is active
 let scanFrameCount = 0;   // frames rendered since scanning started (this session)
 let scanHitFrameCount = 0; // of those, how many actually had >=1 hit-test result
-let scanEscalation = 0;   // which guidance message tier we're currently showing (0..3)
+let scanEscalation = 0;   // 0 = initial guidance, 1 = 'aim down' follow-up shown at 6s (then placeFallback() takes over at AUTO_PLACE_TIMEOUT_MS)
+const AUTO_PLACE_TIMEOUT_MS = 9000; // if no real floor hit by this point, auto-place as a fallback (see placeFallback())
 
 const touchState = { mode: null, lastAngle: 0 };
 const _dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -365,12 +366,13 @@ function arFrame(time, frame) {
       if (scanEscalation === 0 && elapsed > 6000) {
         scanEscalation = 1;
         setBanner('Aim the camera straight down at the floor, ~1m in front of you…');
-      } else if (scanEscalation === 1 && elapsed > 14000) {
-        scanEscalation = 2;
-        setBanner('Still scanning — walk a step closer and slowly sweep over a plain, well-lit patch of floor');
-      } else if (scanEscalation === 2 && elapsed > 25000) {
-        scanEscalation = 3;
-        setBanner('No floor found yet — try a different, better-lit spot (avoid glossy/reflective or very dark floors)');
+      } else if (scanEscalation === 1 && elapsed > AUTO_PLACE_TIMEOUT_MS) {
+        // Give real hit-test a fair window, but don't leave the customer
+        // staring at an empty room indefinitely if this floor/lighting just
+        // never converges — place an estimated position and let them drag
+        // it into place instead. See placeFallback() below.
+        placeFallback();
+        return;
       }
       if (scanFrameCount % 60 === 0) {
         console.info('[ar] scanning: ' + scanFrameCount + ' frames rendered, ' + scanHitFrameCount + ' had a hit, ' + Math.round(elapsed) + 'ms elapsed, still 0 hits so far');
@@ -396,6 +398,48 @@ function onSelect() {
   reticle.visible = false;
   setBanner('');
   setHint('Drag to move · Twist with two fingers to rotate', 3500);
+}
+
+// Fallback placement — used when real hit-test genuinely never finds a
+// floor within a reasonable window. Real-device testing showed some
+// floors/lighting conditions (glossy tile, low-contrast, dim rooms) never
+// converge to a WebXR hit-test result at all, no matter how long or
+// carefully someone scans — leaving the customer staring at an empty room
+// with no way to actually see the product, which defeats the point of the
+// feature. Rather than block forever on a plane that may never be found,
+// this places the piece at an estimated spot a fixed distance in front of
+// wherever the phone is currently facing, at an assumed floor height below
+// the camera. It won't be pixel-perfect on the real floor, but it puts the
+// actual product in the actual room so the customer can see it — and the
+// existing drag-to-move / twist-to-rotate gestures (below) let them nudge
+// it into place by eye afterward, same as with a real hit-test placement.
+function placeFallback() {
+  if (placed) return;
+  const xrCam = renderer.xr.getCamera();
+  const camPos = new THREE.Vector3();
+  xrCam.getWorldPosition(camPos);
+  const camDir = new THREE.Vector3();
+  xrCam.getWorldDirection(camDir);
+  camDir.y = 0;
+  if (camDir.lengthSq() < 1e-6) camDir.set(0, 0, -1);
+  camDir.normalize();
+
+  const distance = 1.6;       // meters in front of the phone — a natural viewing distance for a sofa
+  const assumedFloorY = camPos.y - 1.2; // assume the phone is being held roughly 1.2m above the floor
+
+  arRoot.position.set(
+    camPos.x + camDir.x * distance,
+    assumedFloorY,
+    camPos.z + camDir.z * distance
+  );
+  arRoot.quaternion.identity();
+  arRoot.visible = true;
+  placed = true;
+  reticle.visible = false;
+  setBanner('');
+  setHint('Placed at an estimated spot — drag to move it, twist with two fingers to rotate', 5000);
+  showToast('Could not get a precise floor reading here, so this is an estimated placement — drag it into position.', 4500);
+  console.info('[ar] auto-placed via fallback (no real hit-test result after ' + scanFrameCount + ' frames) at', arRoot.position.toArray());
 }
 
 function onSessionEnd() {
