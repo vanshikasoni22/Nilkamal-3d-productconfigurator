@@ -166,7 +166,12 @@ function buildArRoot() {
 
   const { width: widthCm } = getCurrentCmDims();
   const realWidthM = (widthCm || 90) / 100;
-  const scaleFactor = realWidthM / sceneUnitsWidth;
+  let scaleFactor = realWidthM / sceneUnitsWidth;
+  if (!isFinite(scaleFactor) || scaleFactor <= 0) {
+    console.warn('[ar] buildArRoot: degenerate scaleFactor (' + scaleFactor + ') from sceneUnitsWidth=' + sceneUnitsWidth + ', realWidthM=' + realWidthM + ' — falling back to 1');
+    scaleFactor = 1;
+  }
+  console.info('[ar] buildArRoot: sceneUnitsWidth=' + sceneUnitsWidth.toFixed(3) + ' realWidthM=' + realWidthM.toFixed(3) + ' scaleFactor=' + scaleFactor.toFixed(4));
 
   // Whole current layout (main product + any side table / ottoman modules)
   // is grouped together so it places and moves as one unit, preserving the
@@ -398,6 +403,7 @@ function onSelect() {
   reticle.visible = false;
   setBanner('');
   setHint('Drag to move · Twist with two fingers to rotate', 3500);
+  console.info('[ar] placed at real hit-test pose:', arRoot.position.toArray());
 }
 
 // Fallback placement — used when real hit-test genuinely never finds a
@@ -416,10 +422,19 @@ function onSelect() {
 function placeFallback() {
   if (placed) return;
   const xrCam = renderer.xr.getCamera();
-  const camPos = new THREE.Vector3();
-  xrCam.getWorldPosition(camPos);
-  const camDir = new THREE.Vector3();
-  xrCam.getWorldDirection(camDir);
+  // IMPORTANT: read the pose straight off matrixWorld, the same way the
+  // (already working) drag-to-reposition code above does via
+  // Raycaster.setFromCamera(). The XR session writes this camera's pose
+  // directly into matrixWorld every frame; it does NOT keep the object's
+  // position/quaternion properties in sync. Object3D.getWorldPosition() /
+  // getWorldDirection() call updateWorldMatrix() internally, which
+  // *recomputes* matrixWorld from those (stale/untouched) position/
+  // quaternion properties — silently overwriting the real tracked pose
+  // with a stale one (likely the origin), which would place the sofa
+  // somewhere arbitrary and out of view instead of in front of the phone.
+  // That looked exactly like "nothing appears" from the user's side.
+  const camPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
+  const camDir = new THREE.Vector3(0, 0, -1).transformDirection(xrCam.matrixWorld);
   camDir.y = 0;
   if (camDir.lengthSq() < 1e-6) camDir.set(0, 0, -1);
   camDir.normalize();
