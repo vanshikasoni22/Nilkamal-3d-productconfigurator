@@ -45,6 +45,18 @@ function setBanner(text) {
   arBanner.style.display = text ? 'flex' : 'none';
 }
 
+// Tapping the scanning banner (before placement) surfaces the live scan
+// counters as a toast — gives real numbers (frames rendered vs. frames that
+// actually got a hit-test result) without needing phone dev tools, so a
+// screen recording of someone tapping this mid-scan tells us for certain
+// whether hit-test is finding *nothing* at all vs. finding results
+// inconsistently.
+arBanner.addEventListener('click', () => {
+  if (placed) return;
+  const elapsedS = scanStartedAt ? Math.round((performance.now() - scanStartedAt) / 100) / 10 : 0;
+  showToast(`Scan info: ${scanFrameCount} frames, ${scanHitFrameCount} with a floor hit, ${elapsedS}s elapsed`, 4500);
+});
+
 function setHint(text, autoHideMs) {
   arHint.textContent = text;
   arHint.style.display = text ? 'block' : 'none';
@@ -115,6 +127,9 @@ let placed = false;
 let sawAnyHit = false;
 let scanStartedAt = 0;
 let savedSceneBackground = undefined; // scene.background, stashed while an AR session is active
+let scanFrameCount = 0;   // frames rendered since scanning started (this session)
+let scanHitFrameCount = 0; // of those, how many actually had >=1 hit-test result
+let scanEscalation = 0;   // which guidance message tier we're currently showing (0..3)
 
 const touchState = { mode: null, lastAngle: 0 };
 const _dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -269,7 +284,7 @@ async function startAR() {
   }
 
   arButton.classList.add('hidden');
-  if (arOverlay.classList.contains('active')) setBanner('Move your phone slowly to find a floor…');
+  if (arOverlay.classList.contains('active')) setBanner('Point your phone down at the floor and move it slowly side to side…');
 
   // CRITICAL: scene.background is the opaque studio-gradient texture used
   // for the desktop product shot (see js/main.js). If it's left set during
@@ -297,6 +312,9 @@ async function startAR() {
     hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
     localRefSpace = renderer.xr.getReferenceSpace();
     scanStartedAt = performance.now();
+    scanFrameCount = 0;
+    scanHitFrameCount = 0;
+    scanEscalation = 0;
     console.info('[ar] hit-test source acquired — scanning for a floor plane');
   } catch (err) {
     console.error('[ar] setup after session start failed (reference space / hit-test source):', err);
@@ -323,9 +341,12 @@ function arFrame(time, frame) {
 
   if (!placed && hitTestSource) {
     const hits = frame.getHitTestResults(hitTestSource);
+    scanFrameCount++;
     if (hits.length) {
+      scanHitFrameCount++;
       if (!sawAnyHit) {
         sawAnyHit = true;
+        console.info('[ar] first hit-test result after ' + Math.round(time - scanStartedAt) + 'ms and ' + scanFrameCount + ' frames');
         setBanner('Floor found — tap to place');
       }
       const pose = hits[0].getPose(localRefSpace);
@@ -333,8 +354,26 @@ function arFrame(time, frame) {
       reticle.matrix.fromArray(pose.transform.matrix);
     } else {
       reticle.visible = false;
-      if (!sawAnyHit && time - scanStartedAt > 15000) {
-        setBanner('Still looking… try a well-lit floor with some texture or pattern');
+      // Escalating guidance instead of one generic message: real testing
+      // showed people hold the phone near eye level (pointed at walls, not
+      // the floor) for the first several seconds, and ARCore/WebXR hit-test
+      // genuinely needs a few seconds of camera motion *over the floor
+      // itself* to build a plane hypothesis — so each tier gets more
+      // specific about what to physically do, instead of repeating the
+      // same line the whole time.
+      const elapsed = time - scanStartedAt;
+      if (scanEscalation === 0 && elapsed > 6000) {
+        scanEscalation = 1;
+        setBanner('Aim the camera straight down at the floor, ~1m in front of you…');
+      } else if (scanEscalation === 1 && elapsed > 14000) {
+        scanEscalation = 2;
+        setBanner('Still scanning — walk a step closer and slowly sweep over a plain, well-lit patch of floor');
+      } else if (scanEscalation === 2 && elapsed > 25000) {
+        scanEscalation = 3;
+        setBanner('No floor found yet — try a different, better-lit spot (avoid glossy/reflective or very dark floors)');
+      }
+      if (scanFrameCount % 60 === 0) {
+        console.info('[ar] scanning: ' + scanFrameCount + ' frames rendered, ' + scanHitFrameCount + ' had a hit, ' + Math.round(elapsed) + 'ms elapsed, still 0 hits so far');
       }
     }
   }
